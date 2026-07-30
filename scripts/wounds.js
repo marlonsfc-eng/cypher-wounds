@@ -114,6 +114,25 @@ async function setSlot(actor, severity, index) {
   return saveData(actor, data);
 }
 
+async function applyCapacityBonus(actor, sourceId, bonuses={}) {
+  if (!actor || !sourceId) return;
+  const allBonuses = foundry.utils.deepClone(actor.getFlag(MODULE_ID, "capacityBonuses") ?? {});
+  const previous = allBonuses[sourceId] ?? {};
+  const data = await getData(actor);
+  for (const severity of SEVERITIES) {
+    const oldValue = Number(previous[severity] ?? 0) || 0;
+    const newValue = Number(bonuses[severity] ?? 0) || 0;
+    data.capacity[severity] = Math.max(1, data.capacity[severity] + newValue - oldValue);
+  }
+  allBonuses[sourceId] = {
+    minor: Number(bonuses.minor ?? 0) || 0,
+    moderate: Number(bonuses.moderate ?? 0) || 0,
+    major: Number(bonuses.major ?? 0) || 0
+  };
+  await actor.setFlag(MODULE_ID, "capacityBonuses", allBonuses);
+  return saveData(actor, data);
+}
+
 async function clearWounds(actor) {
   if (!canEdit(actor)) return ui.notifications.warn(i18n("CW.NoPermission"));
   const data = await getData(actor);
@@ -198,9 +217,40 @@ async function migrateLegacyWounds() {
 
 Hooks.once("ready",async()=>{
   await migrateLegacyWounds();
-  game.cypherWounds={open:openTracker,take:takeWound,heal:healWound,clear:clearWounds,getData,hindrance};
+  game.cypherWounds={open:openTracker,take:takeWound,heal:healWound,clear:clearWounds,getData,saveData,applyCapacityBonus,hindrance};
   game.cypher2Toolkit = game.cypher2Toolkit ?? {};
   Object.assign(game.cypher2Toolkit, {wounds: game.cypherWounds});
+});
+
+Hooks.on("renderRollEngineDialogSheet", async (app, html) => {
+  try {
+    const data = app.object ?? {};
+    const actor = fromUuidSync(data.actorUuid);
+    if (!actor) return;
+    const wounds = await getData(actor);
+    const steps = hindrance(wounds);
+    if (!steps) return;
+
+    if (data._c2tWoundBaseNet === undefined) {
+      const modifier = Math.abs(Number(data.difficultyModifier ?? 0) || 0);
+      data._c2tWoundBaseNet = String(data.easedOrHindered ?? "eased") === "hindered" ? -modifier : modifier;
+    }
+
+    if (data._c2tWoundAppliedSteps !== steps) {
+      const net = Number(data._c2tWoundBaseNet) - steps;
+      data.easedOrHindered = net < 0 ? "hindered" : "eased";
+      data.difficultyModifier = Math.abs(net);
+      data._c2tWoundAppliedSteps = steps;
+      return app.render(false);
+    }
+
+    if (!html.find(".c2t-wound-roll-note").length) {
+      const label = steps === 1 ? "Wounds: hindered by 1 step" : `Wounds: hindered by ${steps} steps`;
+      html.find("form").prepend(`<p class="c2t-wound-roll-note"><i class="fa-solid fa-heart-crack"></i> ${label}</p>`);
+    }
+  } catch (error) {
+    console.error(`${MODULE_ID} | Failed to apply wound hindrance`, error);
+  }
 });
 
 Hooks.on("renderActorSheet",injectSheet);

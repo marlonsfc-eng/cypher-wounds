@@ -130,3 +130,13 @@ await game.cypher2Toolkit.wounds.open(actor);
 ## Segurança
 
 Faça backup do mundo antes da primeira importação. Teste inicialmente com um JSON pequeno contendo um Type, um Focus e algumas Abilities.
+
+## Organização automática dos compêndios
+
+As habilidades importadas são organizadas em pastas internas no compêndio:
+
+- `Types / <nome do Type> / Tier <n>`
+- `Foci / <nome do Focus> / Tier <n>`
+- `General Abilities`
+
+O JSON pode declarar a origem com o campo `origin`. Quando ele não existe, o importador tenta inferir a origem pelo identificador da habilidade e pelos Types/Foci incluídos no mesmo arquivo.

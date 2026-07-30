@@ -18,7 +18,11 @@
       "pool": "Might",
       "tier": 1,
       "additionalSteps": 0,
-      "damage": 0
+      "damage": 0,
+      "origin": {
+        "category": "general",
+        "name": "General Abilities"
+      }
     }
   ],
   "types": [
@@ -26,7 +30,9 @@
       "id": "type.example",
       "name": "Example Type",
       "description": "<p>Example type entry.</p>",
-      "abilities": ["ability.example"]
+      "abilities": [
+        "ability.example"
+      ]
     }
   ],
   "foci": [
@@ -34,7 +40,9 @@
       "id": "focus.example",
       "name": "Example Focus",
       "description": "<p>Example focus entry.</p>",
-      "abilities": ["ability.example"]
+      "abilities": [
+        "ability.example"
+      ]
     }
   ]
 }

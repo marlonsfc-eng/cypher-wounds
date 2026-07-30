@@ -84,3 +84,5 @@
 .c2t-importer-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
 .c2t-importer-actions button { flex:0 1 auto; }
 .c2t-result ul { margin:0; padding-left:20px; }
+
+.c2t-wound-roll-note{margin:0 0 .5rem;padding:.4rem .55rem;border:1px solid #a51d2d;border-radius:5px;background:rgba(165,29,45,.12);font-weight:700;text-align:center;}

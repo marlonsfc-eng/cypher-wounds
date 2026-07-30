@@ -13,8 +13,56 @@ function htmlFromEntry(entry) {
   return "<p></p>";
 }
 
-function itemData(entry, category="abilities") {
+function buildImportContext(payload) {
+  const types = new Map();
+  const foci = new Map();
+  for (const entry of payload.types ?? []) {
+    const id = getSourceId(entry, "types");
+    types.set(id, entry);
+    types.set(slugify(entry.name), entry);
+    types.set(id.replace(/^type\./, ""), entry);
+  }
+  for (const entry of payload.foci ?? []) {
+    const id = getSourceId(entry, "foci");
+    foci.set(id, entry);
+    foci.set(slugify(entry.name), entry);
+    foci.set(id.replace(/^focus\./, ""), entry);
+  }
+  return {payload, types, foci};
+}
+
+function resolveOrigin(entry, category, context) {
+  const explicit = entry.origin ?? entry.sourceOrigin;
+  if (explicit && typeof explicit === "object") {
+    return {
+      category: String(explicit.category ?? explicit.type ?? "general").toLowerCase(),
+      id: explicit.id ? String(explicit.id) : null,
+      name: String(explicit.name ?? explicit.label ?? "General Abilities")
+    };
+  }
+  if (category !== "abilities") return null;
+
+  const sourceId = getSourceId(entry, category);
+  const abilityPrefix = sourceId.replace(/^ability\./, "");
+  for (const sourceCategory of ["types", "foci"]) {
+    const map = context[sourceCategory];
+    for (const [key, source] of map.entries()) {
+      if (!key || key.includes(".")) continue;
+      if (abilityPrefix.startsWith(`${key}.`)) {
+        return {
+          category: sourceCategory === "types" ? "type" : "focus",
+          id: getSourceId(source, sourceCategory),
+          name: String(source.name)
+        };
+      }
+    }
+  }
+  return {category: "general", id: null, name: "General Abilities"};
+}
+
+function itemData(entry, category="abilities", context=null) {
   const base = cleanObject(entry.document ?? entry.data);
+  const origin = resolveOrigin(entry, category, context ?? {types:new Map(), foci:new Map()});
   const system = foundry.utils.mergeObject({
     description: htmlFromEntry(entry), archived: false, favorite: false,
     basic: { cost: Number(entry.cost ?? 0) || 0, pool: String(entry.pool ?? "Pool") },
@@ -38,7 +86,7 @@ function itemData(entry, category="abilities") {
     flags: { [C2T_ID]: {
       sourceId: getSourceId(entry, category), category, tier: entry.tier ?? null, source: entry.source ?? null,
       useMode: entry.useMode ?? "chat", abilities: Array.isArray(entry.abilities) ? entry.abilities : [],
-      apply: entry.apply ?? null
+      apply: entry.apply ?? null, origin
     }}
   }, base, {inplace:false, overwrite:true});
 }
@@ -50,20 +98,94 @@ async function ensureWorldPack({name,label,type}) {
   return pack;
 }
 
-async function upsertDocuments(pack, documents, mode="update") {
+function compendiumFolders(pack) {
+  const collected = new Map();
+  const add = folder => { if (folder?.id) collected.set(folder.id, folder); };
+  const own = pack.folders?.contents ?? pack.folders ?? [];
+  for (const folder of own) add(folder);
+  for (const folder of game.folders ?? []) {
+    const collection = folder.pack ?? folder.compendium?.collection;
+    if (collection === pack.collection) add(folder);
+  }
+  return [...collected.values()];
+}
+
+function folderParentId(folder) {
+  return folder?.folder?.id ?? folder?.folder ?? null;
+}
+
+async function ensureCompendiumFolder(pack, name, parentId=null) {
+  const existing = compendiumFolders(pack).find(folder => folder.name === name && folderParentId(folder) === (parentId ?? null));
+  if (existing) return existing;
+  const data = {name, type: pack.documentName ?? "Item", folder: parentId ?? null, sorting: "a"};
+  try {
+    const FolderClass = CONFIG.Folder?.documentClass ?? globalThis.Folder;
+    return await FolderClass.create(data, {pack: pack.collection});
+  } catch (error) {
+    console.warn(`${C2T_ID} | Could not create compendium folder ${name}`, error);
+    return null;
+  }
+}
+
+async function folderForEntry(pack, entry, category, context) {
+  if (category === "abilities") {
+    const origin = resolveOrigin(entry, category, context);
+    const rootName = origin?.category === "type" ? "Types" : origin?.category === "focus" ? "Foci" : "General Abilities";
+    const root = await ensureCompendiumFolder(pack, rootName);
+    if (!origin || origin.category === "general") return root?.id ?? null;
+    const source = await ensureCompendiumFolder(pack, origin.name, root?.id ?? null);
+    const tier = Number(entry.tier);
+    if (Number.isFinite(tier) && tier > 0) {
+      const tierFolder = await ensureCompendiumFolder(pack, `Tier ${tier}`, source?.id ?? root?.id ?? null);
+      return tierFolder?.id ?? source?.id ?? root?.id ?? null;
+    }
+    return source?.id ?? root?.id ?? null;
+  }
+
+  const group = entry.group ?? entry.genre ?? entry.category;
+  if (group) return (await ensureCompendiumFolder(pack, String(group)))?.id ?? null;
+  return null;
+}
+
+async function deleteOwnedFolders(pack) {
+  const owned = compendiumFolders(pack).filter(folder => folder.getFlag?.(C2T_ID, "managed") || ["Types", "Foci", "General Abilities"].includes(folder.name));
+  if (!owned.length) return;
+  const ids = owned.sort((a,b)=>(b.depth??0)-(a.depth??0)).map(folder=>folder.id);
+  try {
+    const FolderClass = CONFIG.Folder?.documentClass ?? globalThis.Folder;
+    await FolderClass.deleteDocuments(ids, {pack: pack.collection, deleteSubfolders: true, deleteContents: false});
+  } catch (error) {
+    console.warn(`${C2T_ID} | Could not clean old compendium folders`, error);
+  }
+}
+
+async function markFolderManaged(folder) {
+  if (!folder?.setFlag) return;
+  try { await folder.setFlag(C2T_ID, "managed", true); } catch (_) {}
+}
+
+async function upsertDocuments(pack, entries, category, context, mode="update") {
   const existing=await pack.getDocuments();
   const bySource=new Map(existing.map(doc=>[doc.getFlag(C2T_ID,"sourceId"),doc]));
   let created=0,updated=0,deleted=0;
   if(mode==="replace") {
     const owned=existing.filter(doc=>doc.getFlag(C2T_ID,"sourceId"));
     if(owned.length){await pack.documentClass.deleteDocuments(owned.map(doc=>doc.id),{pack:pack.collection});deleted=owned.length;bySource.clear();}
+    await deleteOwnedFolders(pack);
   }
-  for(const data of documents){
+  for(const entry of entries){
+    const data=itemData(entry,category,context);
+    const folderId=await folderForEntry(pack,entry,category,context);
+    if(folderId) data.folder=folderId;
     const sourceId=foundry.utils.getProperty(data,`flags.${C2T_ID}.sourceId`); const match=bySource.get(sourceId);
     if(match&&mode==="update"){const update=foundry.utils.deepClone(data);update._id=match.id;await pack.documentClass.updateDocuments([update],{pack:pack.collection});updated++;}
     else {await pack.documentClass.createDocuments([data],{pack:pack.collection});created++;}
   }
-  await pack.getIndex({fields:["name"]}); return {created,updated,deleted};
+  for (const folder of compendiumFolders(pack)) {
+    if (["Types", "Foci", "General Abilities"].includes(folder.name) || folderParentId(folder)) await markFolderManaged(folder);
+  }
+  await pack.getIndex({fields:["name","folder","flags.cypher-2-toolkit.origin","flags.cypher-2-toolkit.tier"]});
+  return {created,updated,deleted};
 }
 
 function validatePayload(payload){
@@ -76,12 +198,12 @@ function validatePayload(payload){
 export async function importCypherContent(payload,options={}){
   if(!game.user.isGM) throw new Error(c2tLocalize("C2T.GMOnly")); validatePayload(payload);
   const mode=options.mode==="replace"?"replace":"update"; const prefix=slugify(options.prefix??payload.meta?.packPrefix??"cypher-2");
-  const labels=payload.meta?.labels??{}; const summary={};
+  const labels=payload.meta?.labels??{}; const summary={}; const context=buildImportContext(payload);
   for(const category of ["abilities","types","foci"]){
     if(!Array.isArray(payload[category])) continue;
     const defaultLabel=category==="abilities"?"Cypher 2 — Abilities":category==="types"?"Cypher 2 — Types":"Cypher 2 — Foci";
     const pack=await ensureWorldPack({name:`${prefix}-${category}`,label:labels[category]??defaultLabel,type:"Item"});
-    summary[category]=await upsertDocuments(pack,payload[category].map(e=>itemData(e,category)),mode);
+    summary[category]=await upsertDocuments(pack,payload[category],category,context,mode);
   }
   await game.settings.set(C2T_ID,"lastImport",JSON.stringify({date:new Date().toISOString(),meta:payload.meta??{},summary})); return summary;
 }

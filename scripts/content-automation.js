@@ -26,7 +26,14 @@ async function applyPackage(item){
   }
   if(apply.edgeChoice){const pool=await chooseEdge(actor);if(pool){const edge=foundry.utils.getProperty(actor,`system.pools.${pool}.edge`)??0;update[`system.pools.${pool}.edge`]=edge+Number(apply.edgeChoice);}}
   if(Object.keys(update).length)await actor.update(update);
-  if(apply.wounds&&game.cypherWounds?.getData){const data=await game.cypherWounds.getData(actor);for(const [s,a] of Object.entries(apply.wounds))data.capacity[s]=(data.capacity[s]??3)+Number(a||0);await actor.setFlag(ID,"wounds",data);}
+  if(apply.wounds&&game.cypherWounds?.applyCapacityBonus){
+    await game.cypherWounds.applyCapacityBonus(actor,fget(item,"sourceId")??item.uuid,apply.wounds);
+  } else if(apply.wounds&&game.cypherWounds?.getData){
+    const data=await game.cypherWounds.getData(actor);
+    for(const [s,a] of Object.entries(apply.wounds))data.capacity[s]=(data.capacity[s]??3)+Number(a||0);
+    if(game.cypherWounds.saveData) await game.cypherWounds.saveData(actor,data);
+    else await actor.setFlag(ID,"wounds",data);
+  }
   const refs=fget(item,"abilities")??[]; const toCreate=[];
   for(const ref of refs){if(actor.items.some(i=>i.getFlag(ID,"sourceId")===ref))continue;const src=await findImportedAbility(ref);if(src){const data=src.toObject();delete data._id;toCreate.push(data);}}
   if(toCreate.length)await actor.createEmbeddedDocuments("Item",toCreate);
@@ -43,6 +50,21 @@ async function useImportedAbility(actor,item){
   const content=`<div class="c2t-ability-card"><h3>${item.name}</h3>${item.system.description||""}</div>`;
   await ChatMessage.create({speaker:ChatMessage.getSpeaker({actor}),content});
 }
+
+async function reconcileAppliedPackages(){
+  if(!game.user.isGM||!game.cypherWounds?.applyCapacityBonus)return;
+  for(const actor of game.actors??[]){
+    for(const item of actor.items??[]){
+      const category=fget(item,"category");
+      const apply=fget(item,"apply")??{};
+      if(["types","foci"].includes(category)&&apply.wounds){
+        await game.cypherWounds.applyCapacityBonus(actor,fget(item,"sourceId")??item.uuid,apply.wounds);
+      }
+    }
+  }
+}
+
+Hooks.once("ready",()=>reconcileAppliedPackages().catch(e=>console.error(`${ID} reconciliation failed`,e)));
 
 Hooks.on("createItem",async item=>{try{await applyPackage(item);}catch(e){console.error(`${ID} package application failed`,e);ui.notifications.error(`Cypher 2 Toolkit: ${e.message}`);}});
 Hooks.on("renderActorSheet",(app,html)=>{
