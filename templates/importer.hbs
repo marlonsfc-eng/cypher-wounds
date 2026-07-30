@@ -1,0 +1,44 @@
+<form class="c2t-importer-form">
+  <p>{{localize "C2T.Importer.Intro"}}</p>
+
+  {{#unless isGM}}
+    <p class="notification error">{{localize "C2T.GMOnly"}}</p>
+  {{/unless}}
+
+  <div class="form-group">
+    <label>{{localize "C2T.Importer.File"}}</label>
+    <div class="form-fields">
+      <input type="file" name="contentFile" accept="application/json,.json" {{#unless isGM}}disabled{{/unless}}>
+    </div>
+    <p class="hint">{{localize "C2T.Importer.FileHint"}}</p>
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "C2T.Importer.Mode"}}</label>
+    <div class="form-fields">
+      <select name="mode">
+        <option value="update">{{localize "C2T.Importer.ModeUpdate"}}</option>
+        <option value="replace">{{localize "C2T.Importer.ModeReplace"}}</option>
+      </select>
+    </div>
+    <p class="hint">{{localize "C2T.Importer.ModeHint"}}</p>
+  </div>
+
+  <div class="form-group">
+    <label>{{localize "C2T.Importer.Prefix"}}</label>
+    <div class="form-fields">
+      <input type="text" name="prefix" value="cypher-2">
+    </div>
+    <p class="hint">{{localize "C2T.Importer.PrefixHint"}}</p>
+  </div>
+
+  <div class="c2t-importer-actions">
+    <button type="button" data-action="download-sample"><i class="fas fa-download"></i> {{localize "C2T.Importer.DownloadSample"}}</button>
+    <button type="submit" {{#unless isGM}}disabled{{/unless}}><i class="fas fa-file-import"></i> {{localize "C2T.Importer.Import"}}</button>
+  </div>
+
+  {{#if lastImport}}
+    <hr>
+    <p class="hint"><strong>{{localize "C2T.Importer.LastImport"}}</strong> {{lastImport.date}}</p>
+  {{/if}}
+</form>
