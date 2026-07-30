@@ -140,3 +140,8 @@ As habilidades importadas são organizadas em pastas internas no compêndio:
 - `General Abilities`
 
 O JSON pode declarar a origem com o campo `origin`. Quando ele não existe, o importador tenta inferir a origem pelo identificador da habilidade e pelos Types/Foci incluídos no mesmo arquivo.
+
+
+## v0.2.3 hotfix
+
+Disabled the experimental automatic wound-hindrance hook because it could prevent the Cypher System roll dialog from opening. Wound penalties remain displayed for manual application while a safer integration is developed.

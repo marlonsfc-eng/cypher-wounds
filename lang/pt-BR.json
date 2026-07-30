@@ -67,5 +67,19 @@
   "C2T.Importer.Updated": "atualizadas",
   "C2T.Importer.Success": "Conteúdo importado com sucesso.",
   "C2T.Importer.Result": "Resultado da importação",
-  "C2T.Importer.Failed": "Falha na importação"
+  "C2T.Importer.Failed": "Falha na importação",
+  "CW.ItemBonuses": "Bônus derivados de itens",
+  "CW.ConfigureBase": "Configurar limites-base",
+  "CW.ConfigureBaseHint": "Estes são os limites-base. Bônus de Types, Foci e Abilities presentes na ficha são somados automaticamente.",
+  "CW.RollHinderedOne": "Ferimentos: ação dificultada em 1 passo.",
+  "CW.RollHinderedMany": "Ferimentos: ação dificultada em {n} passos.",
+  "CW.Settings.TokenCircles.Name": "Mostrar círculos de ferimentos nos tokens",
+  "CW.Settings.TokenCircles.Hint": "Exibe as três trilhas como círculos abaixo do token, sem usar as barras de recurso.",
+  "CW.Settings.TokenVisibility.Name": "Visibilidade dos círculos nos tokens",
+  "CW.Settings.TokenVisibility.Hint": "Define quem enxerga os círculos de ferimentos.",
+  "CW.Settings.TokenVisibility.All": "Todos",
+  "CW.Settings.TokenVisibility.Owners": "Mestre e proprietários",
+  "CW.Settings.TokenVisibility.None": "Ninguém",
+  "CW.Settings.AutoHinder.Name": "Preencher penalidade de ferimentos nas rolagens",
+  "CW.Settings.AutoHinder.Hint": "Ajusta os campos iniciais de eased/hindered sem substituir o motor de rolagem do sistema."
 }

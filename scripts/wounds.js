@@ -1,9 +1,11 @@
 const MODULE_ID = "cypher-2-toolkit";
 const LEGACY_MODULE_ID = "cypher-wounds";
+const MODEL_VERSION = 2;
 const DEFAULTS = Object.freeze({ minor: 3, moderate: 3, major: 3 });
 const SEVERITIES = ["minor", "moderate", "major"];
 
-const i18n = (key, data={}) => game.i18n.format(key, data);
+const i18n = (key, data = {}) => game.i18n.format(key, data);
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 function canEdit(actor) {
   if (!actor) return false;
@@ -11,52 +13,116 @@ function canEdit(actor) {
   return game.settings.get(MODULE_ID, "playersEdit") && actor.isOwner;
 }
 
-function normalize(data={}) {
-  const capacity = {...DEFAULTS, ...(data.capacity ?? {})};
-  const current = {minor:0, moderate:0, major:0, ...(data.current ?? {})};
-  for (const s of SEVERITIES) {
-    capacity[s] = Math.max(1, Number(capacity[s]) || DEFAULTS[s]);
-    current[s] = Math.min(capacity[s], Math.max(0, Number(current[s]) || 0));
+function emptyCurrent() { return { minor: 0, moderate: 0, major: 0 }; }
+function emptyBonuses() { return { minor: 0, moderate: 0, major: 0 }; }
+
+function itemWoundBonus(item) {
+  const apply = item?.getFlag?.(MODULE_ID, "apply") ?? item?.flags?.[MODULE_ID]?.apply ?? {};
+  const wounds = apply?.wounds ?? {};
+  return {
+    minor: Number(wounds.minor ?? 0) || 0,
+    moderate: Number(wounds.moderate ?? 0) || 0,
+    major: Number(wounds.major ?? 0) || 0
+  };
+}
+
+function deriveItemBonuses(actor) {
+  const total = emptyBonuses();
+  for (const item of actor?.items ?? []) {
+    const bonus = itemWoundBonus(item);
+    for (const severity of SEVERITIES) total[severity] += bonus[severity];
   }
-  return {capacity, current};
+  return total;
+}
+
+function sumRecordedBonuses(recorded = {}) {
+  const total = emptyBonuses();
+  for (const source of Object.values(recorded ?? {})) {
+    for (const severity of SEVERITIES) total[severity] += Number(source?.[severity] ?? 0) || 0;
+  }
+  return total;
+}
+
+function migrateRaw(actor, raw = {}) {
+  if (raw.modelVersion === MODEL_VERSION && raw.baseCapacity) return foundry.utils.deepClone(raw);
+
+  const oldCapacity = { ...DEFAULTS, ...(raw.capacity ?? raw.baseCapacity ?? {}) };
+  const currentItemBonuses = deriveItemBonuses(actor);
+  const recordedBonuses = sumRecordedBonuses(actor?.getFlag?.(MODULE_ID, "capacityBonuses") ?? {});
+  const baseCapacity = {};
+
+  for (const severity of SEVERITIES) {
+    const cap = Math.max(1, Number(oldCapacity[severity]) || DEFAULTS[severity]);
+    if (recordedBonuses[severity]) {
+      baseCapacity[severity] = Math.max(1, cap - recordedBonuses[severity]);
+    } else if (cap === DEFAULTS[severity] + currentItemBonuses[severity]) {
+      baseCapacity[severity] = DEFAULTS[severity];
+    } else {
+      baseCapacity[severity] = cap;
+    }
+  }
+
+  return {
+    modelVersion: MODEL_VERSION,
+    baseCapacity,
+    current: { ...emptyCurrent(), ...(raw.current ?? {}) }
+  };
+}
+
+function normalizeStored(actor, raw = {}) {
+  const stored = migrateRaw(actor, raw);
+  const baseCapacity = { ...DEFAULTS, ...(stored.baseCapacity ?? {}) };
+  const current = { ...emptyCurrent(), ...(stored.current ?? {}) };
+  const bonuses = deriveItemBonuses(actor);
+  const capacity = {};
+
+  for (const severity of SEVERITIES) {
+    baseCapacity[severity] = Math.max(1, Number(baseCapacity[severity]) || DEFAULTS[severity]);
+    capacity[severity] = Math.max(1, baseCapacity[severity] + bonuses[severity]);
+    current[severity] = clamp(Number(current[severity]) || 0, 0, capacity[severity]);
+  }
+
+  return { modelVersion: MODEL_VERSION, baseCapacity, bonuses, capacity, current };
 }
 
 async function getData(actor) {
-  return normalize(actor?.getFlag(MODULE_ID, "wounds") ?? {});
-}
-
-function hindrance(data) {
-  const major = data.current.major;
-  const moderatePenalty = data.current.moderate >= data.capacity.moderate ? 1 : 0;
-  return major + moderatePenalty;
-}
-
-function isDead(data) {
-  return data.current.major >= data.capacity.major;
+  return normalizeStored(actor, actor?.getFlag(MODULE_ID, "wounds") ?? {});
 }
 
 async function saveData(actor, data) {
-  const clean = normalize(data);
-  await actor.setFlag(MODULE_ID, "wounds", clean);
+  const clean = normalizeStored(actor, data);
+  const stored = {
+    modelVersion: MODEL_VERSION,
+    baseCapacity: clean.baseCapacity,
+    current: clean.current
+  };
+  await actor.setFlag(MODULE_ID, "wounds", stored);
   await syncEffect(actor, clean);
   if (isDead(clean) && game.settings.get(MODULE_ID, "markDefeated")) await markTokensDefeated(actor);
+  refreshActorTokens(actor);
   return clean;
 }
 
+function hindrance(data) {
+  return Number(data.current.major || 0) + (data.current.moderate >= data.capacity.moderate ? 1 : 0);
+}
+
+function isDead(data) { return data.current.major >= data.capacity.major; }
+
 async function syncEffect(actor, data) {
-  const existing = actor.effects.find(e => e.getFlag(MODULE_ID, "woundEffect"));
+  const existing = actor.effects.find(effect => effect.getFlag(MODULE_ID, "woundEffect"));
   const steps = hindrance(data);
   if (!steps) {
     if (existing) await existing.delete();
     return;
   }
-  const label = `${i18n("CW.Title")}: ${steps === 1 ? i18n("CW.OneStep") : i18n("CW.Steps", {n: steps})}`;
+  const label = `${i18n("CW.Title")}: ${steps === 1 ? i18n("CW.OneStep") : i18n("CW.Steps", { n: steps })}`;
   const effectData = {
     name: label,
     icon: "icons/svg/blood.svg",
     disabled: false,
     changes: [],
-    flags: {[MODULE_ID]: {woundEffect: true, hindrance: steps}},
+    flags: { [MODULE_ID]: { woundEffect: true, hindrance: steps } },
     description: `${i18n("CW.ModerateThreshold")} ${i18n("CW.MajorThreshold")}`
   };
   if (existing) await existing.update(effectData);
@@ -66,28 +132,27 @@ async function syncEffect(actor, data) {
 async function markTokensDefeated(actor) {
   const defeatedId = CONFIG.specialStatusEffects?.DEFEATED ?? "defeated";
   for (const token of actor.getActiveTokens(true, true)) {
-    try { await token.document.toggleActiveEffect(defeatedId, {active:true}); } catch (_) {}
+    try { await token.document.toggleActiveEffect(defeatedId, { active: true }); } catch (_) {}
   }
 }
 
 async function announce(actor, key, severity) {
   if (!game.settings.get(MODULE_ID, "chatAnnouncements")) return;
-  const content = `<div class="cypher-wounds-chat"><strong>${i18n("CW.Title")}</strong><p>${i18n(key,{name:actor.name,severity:game.i18n.localize(`CW.${severity[0].toUpperCase()+severity.slice(1)}`)})}</p></div>`;
-  await ChatMessage.create({speaker: ChatMessage.getSpeaker({actor}), content});
+  const localized = game.i18n.localize(`CW.${severity[0].toUpperCase() + severity.slice(1)}`);
+  const content = `<div class="cypher-wounds-chat"><strong>${i18n("CW.Title")}</strong><p>${i18n(key, { name: actor.name, severity: localized })}</p></div>`;
+  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content });
 }
 
-async function takeWound(actor, severity="minor") {
+async function takeWound(actor, severity = "minor") {
   if (!canEdit(actor)) return ui.notifications.warn(i18n("CW.NoPermission"));
   let data = await getData(actor);
-  let idx = SEVERITIES.indexOf(severity);
-  if (idx < 0) idx = 0;
-  let applied = SEVERITIES[idx];
+  let idx = Math.max(0, SEVERITIES.indexOf(severity));
   while (idx < SEVERITIES.length && data.current[SEVERITIES[idx]] >= data.capacity[SEVERITIES[idx]]) idx++;
   if (idx >= SEVERITIES.length) {
     ui.notifications.warn(i18n("CW.MajorFull"));
     return data;
   }
-  applied = SEVERITIES[idx];
+  const applied = SEVERITIES[idx];
   data.current[applied]++;
   data = await saveData(actor, data);
   if (applied !== severity) ui.notifications.info(i18n(severity === "minor" ? "CW.MinorFull" : "CW.ModerateFull"));
@@ -95,11 +160,10 @@ async function takeWound(actor, severity="minor") {
   return data;
 }
 
-async function healWound(actor, severity=null) {
+async function healWound(actor, severity = null) {
   if (!canEdit(actor)) return ui.notifications.warn(i18n("CW.NoPermission"));
   let data = await getData(actor);
-  let target = severity;
-  if (!target) target = [...SEVERITIES].reverse().find(s => data.current[s] > 0);
+  const target = severity ?? [...SEVERITIES].reverse().find(s => data.current[s] > 0);
   if (!target || data.current[target] <= 0) return data;
   data.current[target]--;
   data = await saveData(actor, data);
@@ -114,152 +178,218 @@ async function setSlot(actor, severity, index) {
   return saveData(actor, data);
 }
 
-async function applyCapacityBonus(actor, sourceId, bonuses={}) {
-  if (!actor || !sourceId) return;
-  const allBonuses = foundry.utils.deepClone(actor.getFlag(MODULE_ID, "capacityBonuses") ?? {});
-  const previous = allBonuses[sourceId] ?? {};
-  const data = await getData(actor);
-  for (const severity of SEVERITIES) {
-    const oldValue = Number(previous[severity] ?? 0) || 0;
-    const newValue = Number(bonuses[severity] ?? 0) || 0;
-    data.capacity[severity] = Math.max(1, data.capacity[severity] + newValue - oldValue);
-  }
-  allBonuses[sourceId] = {
-    minor: Number(bonuses.minor ?? 0) || 0,
-    moderate: Number(bonuses.moderate ?? 0) || 0,
-    major: Number(bonuses.major ?? 0) || 0
-  };
-  await actor.setFlag(MODULE_ID, "capacityBonuses", allBonuses);
-  return saveData(actor, data);
-}
-
 async function clearWounds(actor) {
   if (!canEdit(actor)) return ui.notifications.warn(i18n("CW.NoPermission"));
   const data = await getData(actor);
-  data.current = {minor:0,moderate:0,major:0};
-  await saveData(actor,data);
-  if (game.settings.get(MODULE_ID,"chatAnnouncements")) await ChatMessage.create({speaker:ChatMessage.getSpeaker({actor}),content:`<strong>${i18n("CW.Title")}</strong><p>${i18n("CW.ChatClears",{name:actor.name})}</p>`});
+  data.current = emptyCurrent();
+  await saveData(actor, data);
+  if (game.settings.get(MODULE_ID, "chatAnnouncements")) {
+    await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<strong>${i18n("CW.Title")}</strong><p>${i18n("CW.ChatClears", { name: actor.name })}</p>` });
+  }
 }
 
-function slotsHtml(data, severity, compact=false) {
+function slotsHtml(data, severity, compact = false) {
   const cls = compact ? "cw-dot" : "cw-slot";
-  return Array.from({length:data.capacity[severity]},(_,i)=>`<button type="button" class="${cls} ${severity} ${i < data.current[severity] ? "filled" : ""}" data-action="slot" data-severity="${severity}" data-index="${i}" aria-label="${severity} ${i+1}"></button>`).join("");
+  return Array.from({ length: data.capacity[severity] }, (_, i) => `<button type="button" class="${cls} ${severity} ${i < data.current[severity] ? "filled" : ""}" data-action="slot" data-severity="${severity}" data-index="${i}" aria-label="${severity} ${i + 1}"></button>`).join("");
 }
 
 function statusHtml(data) {
   const steps = hindrance(data);
   if (isDead(data)) return `<span class="cw-danger">${i18n("CW.Dead")}</span>`;
-  return steps ? (steps===1 ? i18n("CW.OneStep") : i18n("CW.Steps",{n:steps})) : i18n("CW.None");
+  return steps ? (steps === 1 ? i18n("CW.OneStep") : i18n("CW.Steps", { n: steps })) : i18n("CW.None");
 }
 
 async function openTracker(actor) {
   if (!actor) return ui.notifications.warn(i18n("CW.InvalidActor"));
   const data = await getData(actor);
+  const bonusLine = SEVERITIES.map(s => `${i18n(`CW.${s[0].toUpperCase() + s.slice(1)}`)} +${data.bonuses[s]}`).join(" · ");
   const content = `<div class="cypher-wounds-dialog" data-actor="${actor.uuid}">
-    ${SEVERITIES.map(s=>`<div class="cw-row"><strong>${i18n(`CW.${s[0].toUpperCase()+s.slice(1)}`)}</strong><div class="cw-slots">${slotsHtml(data,s)}</div><button type="button" data-action="take" data-severity="${s}"><i class="fa-solid fa-plus"></i></button></div>`).join("")}
+    ${SEVERITIES.map(s => `<div class="cw-row"><strong>${i18n(`CW.${s[0].toUpperCase() + s.slice(1)}`)}</strong><div class="cw-slots">${slotsHtml(data, s)}</div><button type="button" data-action="take" data-severity="${s}"><i class="fa-solid fa-plus"></i></button></div>`).join("")}
+    <div class="cw-derived-note"><strong>${i18n("CW.ItemBonuses")}:</strong> ${bonusLine}</div>
     <div class="cw-status"><strong>${i18n("CW.Status")}:</strong> ${statusHtml(data)} · <strong>${i18n("CW.Hindrance")}:</strong> ${statusHtml(data)}</div>
-    <div class="cw-actions"><button type="button" data-action="heal"><i class="fa-solid fa-kit-medical"></i> ${i18n("CW.Heal")}</button><button type="button" data-action="configure"><i class="fa-solid fa-sliders"></i> ${i18n("CW.Configure")}</button><button type="button" data-action="reset"><i class="fa-solid fa-rotate-left"></i> ${i18n("CW.Reset")}</button></div>
+    <div class="cw-actions"><button type="button" data-action="heal"><i class="fa-solid fa-kit-medical"></i> ${i18n("CW.Heal")}</button><button type="button" data-action="configure"><i class="fa-solid fa-sliders"></i> ${i18n("CW.ConfigureBase")}</button><button type="button" data-action="reset"><i class="fa-solid fa-rotate-left"></i> ${i18n("CW.Reset")}</button></div>
   </div>`;
-  new Dialog({title:`${i18n("CW.Title")}: ${actor.name}`,content,buttons:{close:{label:game.i18n.localize("Close")}},render:html=>bindTracker(html,actor)}).render(true);
+  new Dialog({ title: `${i18n("CW.Title")}: ${actor.name}`, content, buttons: { close: { label: game.i18n.localize("Close") } }, render: html => bindTracker(html, actor) }).render(true);
 }
 
 function bindTracker(html, actor) {
-  html.on("click","[data-action]",async ev=>{
-    const el=ev.currentTarget; const action=el.dataset.action;
-    if(action==="take") await takeWound(actor,el.dataset.severity);
-    if(action==="heal") await healWound(actor);
-    if(action==="reset") await clearWounds(actor);
-    if(action==="slot") await setSlot(actor,el.dataset.severity,Number(el.dataset.index));
-    if(action==="configure") return configure(actor);
-    const app=Object.values(ui.windows).find(w=>w.element?.find?.(`.cypher-wounds-dialog[data-actor="${actor.uuid}"]`).length);
-    app?.close(); openTracker(actor);
+  html.on("click", "[data-action]", async event => {
+    const element = event.currentTarget;
+    const action = element.dataset.action;
+    if (action === "take") await takeWound(actor, element.dataset.severity);
+    if (action === "heal") await healWound(actor);
+    if (action === "reset") await clearWounds(actor);
+    if (action === "slot") await setSlot(actor, element.dataset.severity, Number(element.dataset.index));
+    if (action === "configure") return configure(actor);
+    const app = Object.values(ui.windows).find(window => window.element?.find?.(`.cypher-wounds-dialog[data-actor="${actor.uuid}"]`).length);
+    app?.close();
+    openTracker(actor);
   });
 }
 
 async function configure(actor) {
-  const data=await getData(actor);
-  const content=`<form class="cw-config">${SEVERITIES.map(s=>`<div class="form-group"><label>${i18n(`CW.${s[0].toUpperCase()+s.slice(1)}`)}</label><input type="number" min="1" max="20" name="${s}" value="${data.capacity[s]}"></div>`).join("")}</form>`;
-  new Dialog({title:i18n("CW.Configure"),content,buttons:{save:{label:i18n("CW.Save"),callback:async html=>{for(const s of SEVERITIES)data.capacity[s]=Number(html.find(`[name="${s}"]`).val());await saveData(actor,data);}},cancel:{label:i18n("CW.Cancel")}}}).render(true);
+  const data = await getData(actor);
+  const content = `<form class="cw-config"><p>${i18n("CW.ConfigureBaseHint")}</p>${SEVERITIES.map(s => `<div class="form-group"><label>${i18n(`CW.${s[0].toUpperCase() + s.slice(1)}`)}</label><input type="number" min="1" max="20" name="${s}" value="${data.baseCapacity[s]}"><span>+${data.bonuses[s]} = ${data.capacity[s]}</span></div>`).join("")}</form>`;
+  new Dialog({
+    title: i18n("CW.ConfigureBase"), content,
+    buttons: {
+      save: { label: i18n("CW.Save"), callback: async html => {
+        for (const s of SEVERITIES) data.baseCapacity[s] = Number(html.find(`[name="${s}"]`).val());
+        await saveData(actor, data);
+      } },
+      cancel: { label: i18n("CW.Cancel") }
+    }
+  }).render(true);
 }
 
 async function injectSheet(app, html) {
-  if (!game.settings.get(MODULE_ID,"injectSheet")) return;
-  const actor=app.actor; if(!actor || actor.type === "npc") return;
-  const data=await getData(actor);
+  if (!game.settings.get(MODULE_ID, "injectSheet")) return;
+  const actor = app.actor;
+  if (!actor || actor.type === "npc") return;
+  const data = await getData(actor);
   html.find(".cypher-wounds-strip").remove();
-  const strip=$(`<div class="cypher-wounds-strip"><span class="cw-title"><i class="fa-solid fa-heart-crack"></i> ${i18n("CW.Title")}</span>${SEVERITIES.map(s=>`<span class="cw-group"><span class="cw-label">${i18n(`CW.${s[0].toUpperCase()+s.slice(1)}`)}</span>${slotsHtml(data,s,true)}</span>`).join("")}<span class="cw-status-text">${statusHtml(data)}</span><button class="cw-open" type="button" title="${i18n("CW.Open")}"><i class="fa-solid fa-up-right-from-square"></i></button></div>`);
+  const strip = $(`<div class="cypher-wounds-strip"><span class="cw-title"><i class="fa-solid fa-heart-crack"></i> ${i18n("CW.Title")}</span>${SEVERITIES.map(s => `<span class="cw-group"><span class="cw-label">${i18n(`CW.${s[0].toUpperCase() + s.slice(1)}`)}</span>${slotsHtml(data, s, true)}</span>`).join("")}<span class="cw-status-text">${statusHtml(data)}</span><button class="cw-open" type="button" title="${i18n("CW.Open")}"><i class="fa-solid fa-up-right-from-square"></i></button></div>`);
   const form = html.find("form").first();
   const header = form.find("header.sheet-header").first();
   if (header.length) header.before(strip);
   else if (form.length) form.prepend(strip);
   else html.prepend(strip);
-  strip.on("click","[data-action=slot]",async ev=>{ev.preventDefault();await setSlot(actor,ev.currentTarget.dataset.severity,Number(ev.currentTarget.dataset.index));app.render(false);});
-  strip.find(".cw-open").on("click",ev=>{ev.preventDefault();openTracker(actor);});
+  strip.on("click", "[data-action=slot]", async event => { event.preventDefault(); await setSlot(actor, event.currentTarget.dataset.severity, Number(event.currentTarget.dataset.index)); app.render(false); });
+  strip.find(".cw-open").on("click", event => { event.preventDefault(); openTracker(actor); });
 }
 
-Hooks.once("init",()=>{
-  game.settings.register(MODULE_ID,"injectSheet",{name:"CW.Settings.Inject.Name",hint:"CW.Settings.Inject.Hint",scope:"world",config:true,type:Boolean,default:true});
-  game.settings.register(MODULE_ID,"chatAnnouncements",{name:"CW.Settings.Chat.Name",hint:"CW.Settings.Chat.Hint",scope:"world",config:true,type:Boolean,default:true});
-  game.settings.register(MODULE_ID,"markDefeated",{name:"CW.Settings.Defeated.Name",hint:"CW.Settings.Defeated.Hint",scope:"world",config:true,type:Boolean,default:true});
-  game.settings.register(MODULE_ID,"playersEdit",{name:"CW.Settings.Players.Name",hint:"CW.Settings.Players.Hint",scope:"world",config:true,type:Boolean,default:true});
-  game.settings.register(MODULE_ID,"tokenHUD",{name:"CW.Settings.TokenHUD.Name",hint:"CW.Settings.TokenHUD.Hint",scope:"world",config:true,type:Boolean,default:true});
+function drawCircle(graphics, x, y, radius, color, filled) {
+  if (typeof graphics.circle === "function" && typeof graphics.stroke === "function") {
+    graphics.circle(x, y, radius);
+    if (filled) graphics.fill({ color, alpha: 0.95 });
+    graphics.stroke({ color, width: 2, alpha: 0.95 });
+  } else {
+    graphics.lineStyle(2, color, 0.95);
+    if (filled) graphics.beginFill(color, 0.95);
+    graphics.drawCircle(x, y, radius);
+    if (filled) graphics.endFill();
+  }
+}
+
+async function refreshTokenWounds(token) {
+  if (!token?.actor || !canvas?.ready) return;
+  const enabled = game.settings.get(MODULE_ID, "tokenCircles");
+  const visibility = game.settings.get(MODULE_ID, "tokenCircleVisibility");
+  const allowed = visibility === "all" || game.user.isGM || token.actor.isOwner;
+  const old = token.getChildByName?.("cypher2WoundCircles") ?? token.children?.find(c => c.name === "cypher2WoundCircles");
+  if (old) old.destroy({ children: true });
+  if (!enabled || !allowed || visibility === "none") return;
+
+  const data = await getData(token.actor);
+  const container = new PIXI.Container();
+  container.name = "cypher2WoundCircles";
+  container.eventMode = "none";
+  container.zIndex = 9999;
+
+  const radius = Math.max(3, Math.min(6, token.w / 18));
+  const gap = radius * 2.6;
+  const groupGap = radius * 1.5;
+  const counts = SEVERITIES.map(s => data.capacity[s]);
+  const totalWidth = counts.reduce((sum, count) => sum + count * gap, 0) + groupGap * 2;
+  let x = (token.w - totalWidth) / 2 + radius;
+  const y = token.h + radius + 4;
+  const colors = { minor: 0xb68a2c, moderate: 0xcf6b22, major: 0xa51d2d };
+
+  for (const severity of SEVERITIES) {
+    for (let i = 0; i < data.capacity[severity]; i++) {
+      const graphic = new PIXI.Graphics();
+      drawCircle(graphic, 0, 0, radius, colors[severity], i < data.current[severity]);
+      graphic.position.set(x, y);
+      container.addChild(graphic);
+      x += gap;
+    }
+    x += groupGap;
+  }
+  token.addChild(container);
+}
+
+function refreshActorTokens(actor) {
+  for (const token of actor?.getActiveTokens?.(true, true) ?? []) refreshTokenWounds(token).catch(console.error);
+}
+
+function applyRollHindranceNonDestructive(app, html) {
+  try {
+    const data = app.object ?? {};
+    const actor = fromUuidSync(data.actorUuid);
+    if (!actor || app._c2tWoundsPrepared) return;
+    getData(actor).then(wounds => {
+      const steps = hindrance(wounds);
+      if (!steps || app._c2tWoundsPrepared) return;
+      app._c2tWoundsPrepared = true;
+
+      const currentModifier = Math.abs(Number(data.difficultyModifier ?? 0) || 0);
+      const currentNet = String(data.easedOrHindered ?? "eased") === "hindered" ? -currentModifier : currentModifier;
+      const net = currentNet - steps;
+      data.easedOrHindered = net < 0 ? "hindered" : "eased";
+      data.difficultyModifier = Math.abs(net);
+
+      html.find('[name="easedOrHindered"], #easedOrHindered').val(data.easedOrHindered);
+      html.find('[name="difficultyModifier"], #difficultyModifier').val(data.difficultyModifier);
+      if (!html.find(".c2t-wound-roll-note").length) {
+        const label = steps === 1 ? i18n("CW.RollHinderedOne") : i18n("CW.RollHinderedMany", { n: steps });
+        html.find("form").prepend(`<p class="c2t-wound-roll-note"><i class="fa-solid fa-heart-crack"></i> ${label}</p>`);
+      }
+    }).catch(error => console.error(`${MODULE_ID} | Wound roll preparation failed`, error));
+  } catch (error) {
+    console.error(`${MODULE_ID} | Wound roll preparation failed`, error);
+  }
+}
+
+Hooks.once("init", () => {
+  game.settings.register(MODULE_ID, "injectSheet", { name: "CW.Settings.Inject.Name", hint: "CW.Settings.Inject.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "chatAnnouncements", { name: "CW.Settings.Chat.Name", hint: "CW.Settings.Chat.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "markDefeated", { name: "CW.Settings.Defeated.Name", hint: "CW.Settings.Defeated.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "playersEdit", { name: "CW.Settings.Players.Name", hint: "CW.Settings.Players.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "tokenHUD", { name: "CW.Settings.TokenHUD.Name", hint: "CW.Settings.TokenHUD.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "tokenCircles", { name: "CW.Settings.TokenCircles.Name", hint: "CW.Settings.TokenCircles.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "tokenCircleVisibility", { name: "CW.Settings.TokenVisibility.Name", hint: "CW.Settings.TokenVisibility.Hint", scope: "world", config: true, type: String, choices: { all: "CW.Settings.TokenVisibility.All", owners: "CW.Settings.TokenVisibility.Owners", none: "CW.Settings.TokenVisibility.None" }, default: "owners" });
+  game.settings.register(MODULE_ID, "autoRollHindrance", { name: "CW.Settings.AutoHinder.Name", hint: "CW.Settings.AutoHinder.Hint", scope: "world", config: true, type: Boolean, default: true });
 });
 
 async function migrateLegacyWounds() {
   if (!game.user.isGM) return;
   for (const actor of game.actors ?? []) {
-    const current = actor.getFlag(MODULE_ID, "wounds");
-    if (current) continue;
-    const legacy = actor.getFlag(LEGACY_MODULE_ID, "wounds");
-    if (legacy) await actor.setFlag(MODULE_ID, "wounds", normalize(legacy));
+    let current = actor.getFlag(MODULE_ID, "wounds");
+    if (!current) current = actor.getFlag(LEGACY_MODULE_ID, "wounds");
+    if (!current) continue;
+    const clean = normalizeStored(actor, current);
+    await actor.setFlag(MODULE_ID, "wounds", { modelVersion: MODEL_VERSION, baseCapacity: clean.baseCapacity, current: clean.current });
   }
 }
 
-Hooks.once("ready",async()=>{
+Hooks.once("ready", async () => {
   await migrateLegacyWounds();
-  game.cypherWounds={open:openTracker,take:takeWound,heal:healWound,clear:clearWounds,getData,saveData,applyCapacityBonus,hindrance};
+  game.cypherWounds = { open: openTracker, take: takeWound, heal: healWound, clear: clearWounds, getData, saveData, hindrance, refreshToken: refreshTokenWounds };
   game.cypher2Toolkit = game.cypher2Toolkit ?? {};
-  Object.assign(game.cypher2Toolkit, {wounds: game.cypherWounds});
+  Object.assign(game.cypher2Toolkit, { wounds: game.cypherWounds });
+  for (const token of canvas?.tokens?.placeables ?? []) refreshTokenWounds(token).catch(console.error);
 });
 
-Hooks.on("renderRollEngineDialogSheet", async (app, html) => {
-  try {
-    const data = app.object ?? {};
-    const actor = fromUuidSync(data.actorUuid);
-    if (!actor) return;
-    const wounds = await getData(actor);
-    const steps = hindrance(wounds);
-    if (!steps) return;
-
-    if (data._c2tWoundBaseNet === undefined) {
-      const modifier = Math.abs(Number(data.difficultyModifier ?? 0) || 0);
-      data._c2tWoundBaseNet = String(data.easedOrHindered ?? "eased") === "hindered" ? -modifier : modifier;
-    }
-
-    if (data._c2tWoundAppliedSteps !== steps) {
-      const net = Number(data._c2tWoundBaseNet) - steps;
-      data.easedOrHindered = net < 0 ? "hindered" : "eased";
-      data.difficultyModifier = Math.abs(net);
-      data._c2tWoundAppliedSteps = steps;
-      return app.render(false);
-    }
-
-    if (!html.find(".c2t-wound-roll-note").length) {
-      const label = steps === 1 ? "Wounds: hindered by 1 step" : `Wounds: hindered by ${steps} steps`;
-      html.find("form").prepend(`<p class="c2t-wound-roll-note"><i class="fa-solid fa-heart-crack"></i> ${label}</p>`);
-    }
-  } catch (error) {
-    console.error(`${MODULE_ID} | Failed to apply wound hindrance`, error);
-  }
+Hooks.on("renderRollEngineDialogSheet", (app, html) => {
+  if (game.settings.get(MODULE_ID, "autoRollHindrance")) applyRollHindranceNonDestructive(app, html);
 });
-
-Hooks.on("renderActorSheet",injectSheet);
-Hooks.on("getActorSheetHeaderButtons",(app,buttons)=>{if(app.actor?.type!=="npc")buttons.unshift({label:i18n("CW.Title"),class:"cypher-wounds-open",icon:"fas fa-heart-crack",onclick:()=>openTracker(app.actor)});});
-Hooks.on("renderTokenHUD",async(hud,html,data)=>{
-  if(!game.settings.get(MODULE_ID,"tokenHUD"))return;
-  const actor=canvas.tokens.get(data._id)?.actor; if(!actor)return;
-  const wounds=await getData(actor);
-  const btn=$(`<div class="control-icon cypher-wounds-hud ${hindrance(wounds)?"active":""}" title="${i18n("CW.Open")}"><i class="fa-solid fa-heart-crack"></i></div>`);
-  btn.on("click",()=>openTracker(actor)); html.find(".col.right").append(btn);
+Hooks.on("renderActorSheet", injectSheet);
+Hooks.on("getActorSheetHeaderButtons", (app, buttons) => { if (app.actor?.type !== "npc") buttons.unshift({ label: i18n("CW.Title"), class: "cypher-wounds-open", icon: "fas fa-heart-crack", onclick: () => openTracker(app.actor) }); });
+Hooks.on("renderTokenHUD", async (hud, html, data) => {
+  if (!game.settings.get(MODULE_ID, "tokenHUD")) return;
+  const actor = canvas.tokens.get(data._id)?.actor;
+  if (!actor) return;
+  const wounds = await getData(actor);
+  const button = $(`<div class="control-icon cypher-wounds-hud ${hindrance(wounds) ? "active" : ""}" title="${i18n("CW.Open")}"><i class="fa-solid fa-heart-crack"></i></div>`);
+  button.on("click", () => openTracker(actor));
+  html.find(".col.right").append(button);
 });
-Hooks.on("updateActor",actor=>{for(const app of Object.values(actor.apps??{}))app.render(false);});
+Hooks.on("refreshToken", token => refreshTokenWounds(token).catch(console.error));
+Hooks.on("drawToken", token => refreshTokenWounds(token).catch(console.error));
+Hooks.on("updateActor", actor => {
+  refreshActorTokens(actor);
+  for (const app of Object.values(actor.apps ?? {})) app.render(false);
+});
+Hooks.on("createItem", item => { if (item.parent?.documentName === "Actor") refreshActorTokens(item.parent); });
+Hooks.on("deleteItem", item => { if (item.parent?.documentName === "Actor") refreshActorTokens(item.parent); });
+Hooks.on("updateItem", item => { if (item.parent?.documentName === "Actor") refreshActorTokens(item.parent); });

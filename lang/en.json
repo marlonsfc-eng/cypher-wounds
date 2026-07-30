@@ -67,5 +67,19 @@
   "C2T.Importer.Updated": "updated",
   "C2T.Importer.Success": "Content imported successfully.",
   "C2T.Importer.Result": "Import result",
-  "C2T.Importer.Failed": "Import failed"
+  "C2T.Importer.Failed": "Import failed",
+  "CW.ItemBonuses": "Item-derived bonuses",
+  "CW.ConfigureBase": "Configure base limits",
+  "CW.ConfigureBaseHint": "These are the base limits. Bonuses from Types, Foci, and Abilities on the actor are added automatically.",
+  "CW.RollHinderedOne": "Wounds: action hindered by 1 step.",
+  "CW.RollHinderedMany": "Wounds: action hindered by {n} steps.",
+  "CW.Settings.TokenCircles.Name": "Show wound circles on tokens",
+  "CW.Settings.TokenCircles.Hint": "Displays all three tracks as circles below the token without using resource bars.",
+  "CW.Settings.TokenVisibility.Name": "Token circle visibility",
+  "CW.Settings.TokenVisibility.Hint": "Controls who can see wound circles.",
+  "CW.Settings.TokenVisibility.All": "Everyone",
+  "CW.Settings.TokenVisibility.Owners": "GM and owners",
+  "CW.Settings.TokenVisibility.None": "Nobody",
+  "CW.Settings.AutoHinder.Name": "Prefill wound hindrance in rolls",
+  "CW.Settings.AutoHinder.Hint": "Adjusts the initial eased/hindered fields without replacing the system roll engine."
 }
