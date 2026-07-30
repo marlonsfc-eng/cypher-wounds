@@ -2,19 +2,36 @@
   "id": "cypher-2-toolkit",
   "title": "Cypher 2 Toolkit",
   "description": "Ferimentos do Cypher 2 e importador privado de Types, Foci e Abilities para compêndios do mundo no sistema Cypher System.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "authors": [
-    {"name": "Marlon Campos"},
-    {"name": "OpenAI", "flags": {"role": "development assistance"}}
+    {
+      "name": "Marlon Campos"
+    },
+    {
+      "name": "OpenAI",
+      "flags": {
+        "role": "development assistance"
+      }
+    }
   ],
   "esmodules": [
     "scripts/main.js",
     "scripts/wounds.js"
   ],
-  "styles": ["styles/cypher-2-toolkit.css"],
+  "styles": [
+    "styles/cypher-2-toolkit.css"
+  ],
   "languages": [
-    {"lang": "pt-BR", "name": "Português (Brasil)", "path": "lang/pt-BR.json"},
-    {"lang": "en", "name": "English", "path": "lang/en.json"}
+    {
+      "lang": "pt-BR",
+      "name": "Português (Brasil)",
+      "path": "lang/pt-BR.json"
+    },
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    }
   ],
   "compatibility": {
     "minimum": "12",
@@ -22,7 +39,10 @@
   },
   "relationships": {
     "systems": [
-      {"id": "cyphersystem", "type": "system"}
+      {
+        "id": "cyphersystem",
+        "type": "system"
+      }
     ]
   },
   "license": "MIT",

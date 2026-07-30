@@ -16,7 +16,7 @@ function normalize(data={}) {
   const current = {minor:0, moderate:0, major:0, ...(data.current ?? {})};
   for (const s of SEVERITIES) {
     capacity[s] = Math.max(1, Number(capacity[s]) || DEFAULTS[s]);
-    current[s] = Math.clamp(Number(current[s]) || 0, 0, capacity[s]);
+    current[s] = Math.min(capacity[s], Math.max(0, Number(current[s]) || 0));
   }
   return {capacity, current};
 }
@@ -168,9 +168,12 @@ async function injectSheet(app, html) {
   const actor=app.actor; if(!actor || actor.type === "npc") return;
   const data=await getData(actor);
   html.find(".cypher-wounds-strip").remove();
-  const strip=$(`<div class="cypher-wounds-strip"><span class="cw-title"><i class="fa-solid fa-heart-crack"></i> ${i18n("CW.Title")}</span>${SEVERITIES.map(s=>`<span class="cw-group"><span class="cw-label">${i18n(`CW.${s[0].toUpperCase()+s.slice(1)}`)}</span>${slotsHtml(data,s,true)}</span>`).join("")}<span>${statusHtml(data)}</span><button class="cw-open" type="button" title="${i18n("CW.Open")}"><i class="fa-solid fa-up-right-from-square"></i></button></div>`);
-  const target=html.find("form").first();
-  if(target.length) target.prepend(strip); else html.prepend(strip);
+  const strip=$(`<div class="cypher-wounds-strip"><span class="cw-title"><i class="fa-solid fa-heart-crack"></i> ${i18n("CW.Title")}</span>${SEVERITIES.map(s=>`<span class="cw-group"><span class="cw-label">${i18n(`CW.${s[0].toUpperCase()+s.slice(1)}`)}</span>${slotsHtml(data,s,true)}</span>`).join("")}<span class="cw-status-text">${statusHtml(data)}</span><button class="cw-open" type="button" title="${i18n("CW.Open")}"><i class="fa-solid fa-up-right-from-square"></i></button></div>`);
+  const form = html.find("form").first();
+  const header = form.find("header.sheet-header").first();
+  if (header.length) header.before(strip);
+  else if (form.length) form.prepend(strip);
+  else html.prepend(strip);
   strip.on("click","[data-action=slot]",async ev=>{ev.preventDefault();await setSlot(actor,ev.currentTarget.dataset.severity,Number(ev.currentTarget.dataset.index));app.render(false);});
   strip.find(".cw-open").on("click",ev=>{ev.preventDefault();openTracker(actor);});
 }
