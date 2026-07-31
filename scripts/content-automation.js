@@ -95,16 +95,25 @@ Hooks.on("createItem", async item => {
 Hooks.on("renderActorSheet", (app, html) => {
   const actor = app.actor;
   if (!actor) return;
+
   html.find("li.item[data-item-id]").each((_, element) => {
     const row = $(element);
     const item = actor.items.get(row.data("item-id"));
-    if (!item || fget(item, "category") !== "abilities" || row.find(".c2t-use").length) return;
-    const button = $('<a class="item-control c2t-use" title="Use ability"><i class="fa-solid fa-play"></i></a>');
-    button.on("click", async event => {
-      event.preventDefault();
-      event.stopPropagation();
-      await useImportedAbility(actor, item);
-    });
-    row.find(".item-controls").prepend(button);
+    if (!item || fget(item, "category") !== "abilities") return;
+
+    // Imported abilities use the Cypher System's native item-pay/roll control.
+    // Remove buttons created by older Toolkit versions to avoid overlapping click handlers.
+    row.find(".c2t-use").remove();
+
+    // Only add a fallback when the current Cypher sheet exposes no native roll button.
+    if (!row.find(".item-pay").length && !row.find(".c2t-native-fallback").length) {
+      const button = $('<a class="item-control c2t-native-fallback" title="Post ability to chat"><i class="fa-solid fa-message"></i></a>');
+      button.on("click", async event => {
+        event.preventDefault();
+        event.stopPropagation();
+        await useImportedAbility(actor, item);
+      });
+      row.find(".item-controls").prepend(button);
+    }
   });
 });

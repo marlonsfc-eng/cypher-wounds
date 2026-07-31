@@ -145,3 +145,10 @@ O JSON pode declarar a origem com o campo `origin`. Quando ele não existe, o im
 ## v0.2.3 hotfix
 
 Disabled the experimental automatic wound-hindrance hook because it could prevent the Cypher System roll dialog from opening. Wound penalties remain displayed for manual application while a safer integration is developed.
+
+
+## v0.3.1
+- Move the wound hindrance notice to a compact badge in the roll window title bar.
+- Imported abilities now rely on the Cypher System native roll/pay button.
+- Remove the redundant Toolkit play button that could intercept ability clicks.
+- Add a chat-only fallback only when the system sheet has no native roll control.

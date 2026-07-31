@@ -330,9 +330,14 @@ function applyRollHindranceNonDestructive(app, html) {
 
       html.find('[name="easedOrHindered"], #easedOrHindered').val(data.easedOrHindered);
       html.find('[name="difficultyModifier"], #difficultyModifier').val(data.difficultyModifier);
-      if (!html.find(".c2t-wound-roll-note").length) {
-        const label = steps === 1 ? i18n("CW.RollHinderedOne") : i18n("CW.RollHinderedMany", { n: steps });
-        html.find("form").prepend(`<p class="c2t-wound-roll-note"><i class="fa-solid fa-heart-crack"></i> ${label}</p>`);
+      const label = steps === 1 ? i18n("CW.RollHinderedOne") : i18n("CW.RollHinderedMany", { n: steps });
+      const header = app.element?.find?.(".window-header") ?? $();
+      if (header.length && !header.find(".c2t-wound-roll-badge").length) {
+        header.find(".window-title").after(`<span class="c2t-wound-roll-badge" title="${label}"><i class="fa-solid fa-heart-crack"></i> ${steps}</span>`);
+      } else if (!header.length && !html.find(".c2t-wound-roll-inline").length) {
+        const settings = html.find('[name="easedOrHindered"], #easedOrHindered').first().closest(".form-group, .flexrow, div");
+        const badge = `<span class="c2t-wound-roll-inline"><i class="fa-solid fa-heart-crack"></i> ${label}</span>`;
+        if (settings.length) settings.append(badge);
       }
     }).catch(error => console.error(`${MODULE_ID} | Wound roll preparation failed`, error));
   } catch (error) {

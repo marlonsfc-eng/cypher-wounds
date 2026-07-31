@@ -85,5 +85,33 @@
 .c2t-importer-actions button { flex:0 1 auto; }
 .c2t-result ul { margin:0; padding-left:20px; }
 
-.c2t-wound-roll-note{margin:0 0 .5rem;padding:.4rem .55rem;border:1px solid #a51d2d;border-radius:5px;background:rgba(165,29,45,.12);font-weight:700;text-align:center;}
-.cw-derived-note{padding:.35rem .55rem;border-radius:5px;background:rgba(127,127,127,.08);font-size:.82rem}.cw-config .form-group{display:grid;grid-template-columns:1fr 70px auto;gap:.5rem;align-items:center;margin:.45rem 0}.c2t-wound-roll-note{margin:.35rem;padding:.45rem .65rem;border:1px solid rgba(165,29,45,.55);border-radius:5px;background:rgba(165,29,45,.1);font-weight:700}
+
+.cw-derived-note{padding:.35rem .55rem;border-radius:5px;background:rgba(127,127,127,.08);font-size:.82rem}.cw-config .form-group{display:grid;grid-template-columns:1fr 70px auto;gap:.5rem;align-items:center;margin:.45rem 0}
+
+/* Compact wound indicator in Cypher roll windows. It lives in the title bar and does not affect layout. */
+.c2t-wound-roll-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  min-width: 28px;
+  height: 22px;
+  margin-left: 0.45rem;
+  padding: 0 0.4rem;
+  border: 1px solid rgba(165,29,45,.65);
+  border-radius: 999px;
+  background: rgba(165,29,45,.18);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.c2t-wound-roll-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-dark-primary, inherit);
+}
