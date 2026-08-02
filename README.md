@@ -201,3 +201,18 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Adds the conversion and an Apply Wound button to NPC attack chat cards.
 - The chat button applies the wound to targeted PCs, controlled PCs, or the user's assigned character.
 - Adds direct Minor, Moderate, and Major wound buttons to the Token HUD for PCs.
+
+
+## v0.5.1
+- Fixes Token HUD wound controls on Foundry v13 by resolving the token through `hud.object`.
+- Falls back between the right and left HUD columns.
+- Prevents duplicate wound controls after HUD re-renders.
+
+
+## v0.6.0
+- Removes NPC attack damage conversion permanently.
+- Adds a universal floating wound applicator between the player list and macro hotbar.
+- Target priority: targeted PCs, controlled PCs, assigned character, or sole owned PC.
+- Buttons apply Minor, Moderate, Major, or heal one wound.
+- Shift-click on I/II/III removes one wound of that severity.
+- Panel is collapsible, draggable, and saves its position per browser.
