@@ -168,3 +168,14 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Natural 19: choose +3 damage (damage attacks only) or a minor effect.
 - Natural 20: choose +4 damage (damage attacks only) or a major effect; the action's Pool cost is restored automatically.
 - The effect picker lists the common combat effects from the Cypher 2 rules and permits an agreed custom effect.
+
+
+## v0.4.2
+- Adds import and drag-and-drop application for Descriptors.
+- Descriptors can apply Pool increases and prompt for the granted trained skill.
+
+
+## v0.4.3
+- Restores the Cypher System native Roll Item button for imported abilities on Foundry v13.
+- Imported abilities now use itemRollMacro, restoring automatic base cost, Edge, Effort, Pool payment, and other native roll behavior.
+- Existing imported abilities are normalized automatically when the world starts.

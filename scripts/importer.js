@@ -64,10 +64,10 @@ function itemData(entry, category="abilities", context=null) {
   const base = cleanObject(entry.document ?? entry.data);
   const origin = resolveOrigin(entry, category, context ?? {types:new Map(), foci:new Map()});
   const system = foundry.utils.mergeObject({
-    description: htmlFromEntry(entry), archived: false, favorite: false,
+    version: 2, description: htmlFromEntry(entry), archived: false, favorite: false,
     basic: { cost: Number(entry.cost ?? 0) || 0, pool: String(entry.pool ?? "Pool") },
     settings: {
-      general: { sorting: String(entry.sorting ?? (category === "types" ? "Type" : category === "foci" ? "Focus" : "Ability")), spellTier: String(entry.spellTier ?? "low"), unmaskedForm: "Mask" },
+      general: { sorting: String(entry.sorting ?? (category === "types" ? "Type" : category === "foci" ? "Focus" : category === "descriptors" ? "Descriptor" : "Ability")), spellTier: String(entry.spellTier ?? "low"), unmaskedForm: "Mask" },
       rollButton: {
         pool: String(entry.rollPool ?? entry.pool ?? "Pool"), skill: String(entry.skill ?? "Practiced"),
         assets: Number(entry.assets ?? 0) || 0, effort1: 0, effort2: 0, effort3: 0,
@@ -190,7 +190,7 @@ async function upsertDocuments(pack, entries, category, context, mode="update") 
 
 function validatePayload(payload){
   if(!payload||typeof payload!=="object"||Array.isArray(payload)) throw new Error(c2tLocalize("C2T.Importer.InvalidRoot"));
-  const supported=["types","foci","abilities"];
+  const supported=["types","foci","descriptors","abilities"];
   if(!supported.some(key=>Array.isArray(payload[key]))) throw new Error(c2tLocalize("C2T.Importer.NoCollections"));
   for(const key of supported){if(payload[key]!==undefined&&!Array.isArray(payload[key])) throw new Error(`${key}: ${c2tLocalize("C2T.Importer.MustBeArray")}`);for(const entry of payload[key]??[]){if(!entry||typeof entry!=="object"||!entry.name) throw new Error(`${key}: ${c2tLocalize("C2T.Importer.MissingName")}`);}}
 }
@@ -199,9 +199,9 @@ export async function importCypherContent(payload,options={}){
   if(!game.user.isGM) throw new Error(c2tLocalize("C2T.GMOnly")); validatePayload(payload);
   const mode=options.mode==="replace"?"replace":"update"; const prefix=slugify(options.prefix??payload.meta?.packPrefix??"cypher-2");
   const labels=payload.meta?.labels??{}; const summary={}; const context=buildImportContext(payload);
-  for(const category of ["abilities","types","foci"]){
+  for(const category of ["abilities","types","foci","descriptors"]){
     if(!Array.isArray(payload[category])) continue;
-    const defaultLabel=category==="abilities"?"Cypher 2 — Abilities":category==="types"?"Cypher 2 — Types":"Cypher 2 — Foci";
+    const defaultLabel=category==="abilities"?"Cypher 2 — Abilities":category==="types"?"Cypher 2 — Types":category==="foci"?"Cypher 2 — Foci":"Cypher 2 — Descriptors";
     const pack=await ensureWorldPack({name:`${prefix}-${category}`,label:labels[category]??defaultLabel,type:"Item"});
     summary[category]=await upsertDocuments(pack,payload[category],category,context,mode);
   }

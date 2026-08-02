@@ -24,22 +24,84 @@ async function chooseEdge() {
   }).render(true));
 }
 
+async function chooseOption(title, prompt, options) {
+  if (!Array.isArray(options) || !options.length) return null;
+  if (options.length === 1) return options[0];
+  return new Promise(resolve => {
+    const buttons = {};
+    options.forEach((option, index) => {
+      buttons[`choice${index}`] = {
+        label: String(option),
+        callback: () => resolve(option)
+      };
+    });
+    new Dialog({
+      title,
+      content: `<p>${prompt}</p>`,
+      buttons,
+      close: () => resolve(null)
+    }).render(true);
+  });
+}
+
+async function addTrainedSkill(actor, skillName, sourceId) {
+  if (!skillName) return;
+  const existing = actor.items.find(item =>
+    item.type === "skill" && item.name.toLowerCase() === String(skillName).toLowerCase()
+  );
+  if (existing) return;
+  await actor.createEmbeddedDocuments("Item", [{
+    name: String(skillName),
+    type: "skill",
+    img: "icons/svg/book.svg",
+    system: {
+      description: `<p>Granted by descriptor.</p>`,
+      archived: false,
+      favorite: false,
+      basic: { rating: "Trained" },
+      settings: { general: { sorting: "Skill" } }
+    },
+    flags: {
+      [ID]: {
+        sourceId: `${sourceId}.skill.${String(skillName).toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        category: "descriptor-skill"
+      }
+    }
+  }]);
+}
+
 async function applyPackage(item) {
   const actor = item.parent;
   if (!actor || actor.documentName !== "Actor") return;
   const category = fget(item, "category");
-  if (!["types", "foci"].includes(category) || fget(item, "applied")) return;
+  if (!["types", "foci", "descriptors"].includes(category) || fget(item, "applied")) return;
 
   const apply = fget(item, "apply") ?? {};
   const update = {};
   if (category === "types") update["system.basic.type"] = item.name;
   if (category === "foci") update["system.basic.focus"] = item.name;
+  if (category === "descriptors") update["system.basic.descriptor"] = item.name;
 
   for (const [pool, amount] of Object.entries(apply.pools ?? {})) {
     const max = foundry.utils.getProperty(actor, `system.pools.${pool}.max`) ?? 0;
     const value = foundry.utils.getProperty(actor, `system.pools.${pool}.value`) ?? 0;
     update[`system.pools.${pool}.max`] = max + Number(amount || 0);
     update[`system.pools.${pool}.value`] = value + Number(amount || 0);
+  }
+
+  if (apply.poolChoice?.amount && Array.isArray(apply.poolChoice.options)) {
+    const pool = await chooseOption(
+      `${item.name} — Pool`,
+      `Choose the Pool that gains +${Number(apply.poolChoice.amount)}.`,
+      apply.poolChoice.options
+    );
+    if (pool) {
+      const key = String(pool).toLowerCase();
+      const max = foundry.utils.getProperty(actor, `system.pools.${key}.max`) ?? 0;
+      const value = foundry.utils.getProperty(actor, `system.pools.${key}.value`) ?? 0;
+      update[`system.pools.${key}.max`] = max + Number(apply.poolChoice.amount);
+      update[`system.pools.${key}.value`] = value + Number(apply.poolChoice.amount);
+    }
   }
 
   if (apply.edgeChoice) {
@@ -51,6 +113,15 @@ async function applyPackage(item) {
   }
 
   if (Object.keys(update).length) await actor.update(update);
+
+  if (category === "descriptors" && Array.isArray(apply.skillChoice)) {
+    const skill = await chooseOption(
+      `${item.name} — Skill`,
+      "Choose the skill in which the character is trained.",
+      apply.skillChoice
+    );
+    if (skill) await addTrainedSkill(actor, skill, fget(item, "sourceId") ?? item.uuid);
+  }
 
   const refs = fget(item, "abilities") ?? [];
   const toCreate = [];
@@ -69,72 +140,95 @@ async function applyPackage(item) {
   ui.notifications.info(`${item.name} applied to ${actor.name}.`);
 }
 
-async function useImportedAbility(actor, item) {
+
+function nativeRollDefaults(item) {
+  const current = foundry.utils.deepClone(item.system ?? {});
+  return {
+    "system.version": Number(current.version ?? 2) || 2,
+    "system.basic.cost": Number(current.basic?.cost ?? 0) || 0,
+    "system.basic.pool": String(current.basic?.pool ?? "Pool"),
+    "system.settings.general.sorting": String(current.settings?.general?.sorting ?? "Ability"),
+    "system.settings.general.spellTier": String(current.settings?.general?.spellTier ?? "low"),
+    "system.settings.general.unmaskedForm": String(current.settings?.general?.unmaskedForm ?? "Mask"),
+    "system.settings.rollButton.pool": String(current.settings?.rollButton?.pool ?? current.basic?.pool ?? "Pool"),
+    "system.settings.rollButton.skill": String(current.settings?.rollButton?.skill ?? "Practiced"),
+    "system.settings.rollButton.assets": Number(current.settings?.rollButton?.assets ?? 0) || 0,
+    "system.settings.rollButton.effort1": Number(current.settings?.rollButton?.effort1 ?? 0) || 0,
+    "system.settings.rollButton.effort2": Number(current.settings?.rollButton?.effort2 ?? 0) || 0,
+    "system.settings.rollButton.effort3": Number(current.settings?.rollButton?.effort3 ?? 0) || 0,
+    "system.settings.rollButton.freeEffort": Number(current.settings?.rollButton?.freeEffort ?? 0) || 0,
+    "system.settings.rollButton.stepModifier": String(current.settings?.rollButton?.stepModifier ?? "eased"),
+    "system.settings.rollButton.additionalSteps": Number(current.settings?.rollButton?.additionalSteps ?? 0) || 0,
+    "system.settings.rollButton.additionalCost": Number(current.settings?.rollButton?.additionalCost ?? 0) || 0,
+    "system.settings.rollButton.damage": Number(current.settings?.rollButton?.damage ?? 0) || 0,
+    "system.settings.rollButton.damagePerLOE": Number(current.settings?.rollButton?.damagePerLOE ?? 3) || 3,
+    "system.settings.rollButton.teen": String(current.settings?.rollButton?.teen ?? ""),
+    "system.settings.rollButton.bonus": Number(current.settings?.rollButton?.bonus ?? 0) || 0,
+    "system.settings.rollButton.macroUuid": String(current.settings?.rollButton?.macroUuid ?? ""),
+    "system.settings.rollButton.macroExecuteAsGM": Boolean(current.settings?.rollButton?.macroExecuteAsGM ?? false)
+  };
+}
+
+async function normalizeImportedAbility(item) {
+  if (!item || item.type !== "ability" || fget(item, "category") !== "abilities") return;
+  const desired = nativeRollDefaults(item);
+  const update = {};
+  for (const [path, value] of Object.entries(desired)) {
+    const current = foundry.utils.getProperty(item, path);
+    if (current !== value) update[path] = value;
+  }
+  if (Object.keys(update).length) await item.update(update);
+}
+
+async function useNativeItemRoll(actor, item) {
   try {
-    // Use the Cypher System's own roll engine. This is intentionally loaded
-    // at click time so the Toolkit remains compatible with Foundry v13 and v14.
+    await normalizeImportedAbility(item);
     const macros = await import("/systems/cyphersystem/module/macros/macros.js");
-    if (typeof macros.allInOneRollDialog !== "function") {
-      throw new Error("The Cypher System roll function was not found.");
+    if (typeof macros.itemRollMacro !== "function") {
+      throw new Error("The Cypher System native item roll function was not found.");
     }
-
-    const roll = item.system?.settings?.rollButton ?? {};
-    const pool = String(roll.pool ?? item.system?.basic?.pool ?? "Pool");
-    const skill = String(roll.skill ?? "Practiced");
-    const assets = Number(roll.assets ?? 0) || 0;
-    const effort1 = Number(roll.effort1 ?? 0) || 0;
-    const effort2 = Number(roll.effort2 ?? 0) || 0;
-    const effort3 = Number(roll.effort3 ?? 0) || 0;
-    const additionalCost = Number(roll.additionalCost ?? 0) || 0;
-    const additionalSteps = Number(roll.additionalSteps ?? 0) || 0;
-    const stepModifier = String(roll.stepModifier ?? "eased");
-    const damage = Number(roll.damage ?? 0) || 0;
-    const damagePerLOE = Number(roll.damagePerLOE ?? 3) || 3;
-    const teen = String(roll.teen ?? "");
-    const bonus = Number(roll.bonus ?? 0) || 0;
-
-    // Keep the normal dialog visible. The system itself handles ability cost,
-    // Edge, Effort, damage, chat output, and the Toolkit wound modifier.
-    await macros.allInOneRollDialog(
+    const macroUuid = item.system?.settings?.rollButton?.macroUuid ?? "";
+    return macros.itemRollMacro(
       actor,
-      pool,
-      skill,
-      assets,
-      effort1,
-      effort2,
-      additionalCost,
-      additionalSteps,
-      stepModifier,
-      item.name,
-      damage,
-      effort3,
-      damagePerLOE,
-      teen,
-      false,
-      false,
       item.id,
-      bonus
+      "", "", "", "", "", "", "", "", "", "", "", "", false, "",
+      macroUuid,
+      ""
     );
   } catch (error) {
-    console.error(`${ID} imported ability roll failed`, error);
+    console.error(`${ID} native imported ability roll failed`, error);
     ui.notifications.error(`Cypher 2 Toolkit: ${error.message}`);
   }
 }
 
+async function migrateImportedAbilities() {
+  if (!game.user.isGM) return;
+  for (const actor of game.actors ?? []) {
+    for (const item of actor.items ?? []) await normalizeImportedAbility(item);
+  }
+}
+
 Hooks.on("createItem", async item => {
-  try { await applyPackage(item); }
+  try {
+    await normalizeImportedAbility(item);
+    await applyPackage(item);
+  }
   catch (error) {
     console.error(`${ID} package application failed`, error);
     ui.notifications.error(`Cypher 2 Toolkit: ${error.message}`);
   }
 });
 
+Hooks.once("ready", () => {
+  migrateImportedAbilities().catch(error =>
+    console.error(`${ID} imported ability migration failed`, error)
+  );
+});
+
 Hooks.on("renderActorSheet", (app, html) => {
   const actor = app.actor;
   if (!actor) return;
 
-  // Foundry v13 supplies a jQuery object here. Foundry v14 may supply either
-  // jQuery or an HTMLElement depending on the sheet generation.
   const root = html?.find ? html : $(html);
   root.find("li.item[data-item-id]").each((_, element) => {
     const row = $(element);
@@ -142,16 +236,21 @@ Hooks.on("renderActorSheet", (app, html) => {
     const item = actor.items.get(itemId);
     if (!item || fget(item, "category") !== "abilities") return;
 
-    // Imported abilities receive one Toolkit button that calls the system's
-    // native all-in-one roll function directly. This avoids relying on the
-    // sheet's version-specific click listener.
+    // Remove the old Toolkit play button. Imported abilities now use the
+    // exact same .item-roll control and itemRollMacro as native abilities.
     row.find(".c2t-use, .c2t-native-fallback").remove();
-    const button = $('<a class="item-control c2t-use" title="Use ability"><i class="fa-solid fa-play"></i></a>');
-    button.on("click", async event => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      await useImportedAbility(actor, item);
-    });
-    row.find(".item-controls").prepend(button);
+
+    // Only provide a fallback when a custom sheet truly omits the native button.
+    // The fallback still calls itemRollMacro, so costs, Edge, Effort and Pool
+    // payment remain entirely under the Cypher System's own automation.
+    if (!row.find(".item-roll").length) {
+      const fallback = $('<a class="item-control c2t-native-fallback" title="Roll Item"><i class="fa-solid fa-dice-d20"></i></a>');
+      fallback.on("click", async event => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        await useNativeItemRoll(actor, item);
+      });
+      row.find(".item-controls").prepend(fallback);
+    }
   });
 });
