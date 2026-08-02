@@ -216,3 +216,15 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Buttons apply Minor, Moderate, Major, or heal one wound.
 - Shift-click on I/II/III removes one wound of that severity.
 - Panel is collapsible, draggable, and saves its position per browser.
+
+
+## v0.6.1
+- Fixes the universal applicator Heal button.
+- Fixes Shift-click wound removal in the universal applicator.
+
+
+## v0.7.0
+- Removes wound indicators from tokens and centralizes them in the universal wound panel.
+- Shows current/capacity, colored wound circles, and global hindrance for each selected or targeted PC.
+- Makes the panel resizable with a drag handle and saves its size per browser.
+- Adds a reset-size button while retaining drag, collapse, target priority, apply, heal, and Shift-click removal.

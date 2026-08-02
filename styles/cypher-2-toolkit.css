@@ -255,3 +255,189 @@
   text-align: center;
   opacity: 0.6;
 }
+
+
+/* v0.7.0 — centralized, resizable wound panel */
+.c2t-wound-applicator {
+  width: 280px;
+  min-width: 230px;
+  max-width: min(520px, calc(100vw - 12px));
+  height: auto;
+  min-height: 160px;
+  max-height: calc(100vh - 12px);
+  resize: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.c2t-applicator-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.c2t-applicator-reset-size,
+.c2t-applicator-collapse {
+  width: 24px;
+  height: 22px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.c2t-applicator-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.c2t-applicator-status {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.c2t-applicator-empty {
+  padding: 9px;
+  border: 1px dashed rgba(255,255,255,0.18);
+  border-radius: 5px;
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.68;
+}
+
+.c2t-applicator-actor {
+  padding: 7px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.045);
+}
+
+.c2t-applicator-actor-name {
+  margin-bottom: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c2t-applicator-tracks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(58px, 1fr));
+  gap: 6px;
+}
+
+.c2t-applicator-track {
+  min-width: 0;
+}
+
+.c2t-applicator-track-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 3px;
+  font-size: 9px;
+}
+
+.c2t-applicator-track-head .tier {
+  font-weight: 900;
+}
+
+.c2t-applicator-track-head .label {
+  overflow: hidden;
+  opacity: 0.75;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c2t-applicator-track.minor .tier,
+.c2t-applicator-track.minor .c2t-applicator-dot.filled {
+  color: #59d9e8;
+}
+
+.c2t-applicator-track.moderate .tier,
+.c2t-applicator-track.moderate .c2t-applicator-dot.filled {
+  color: #ffb13b;
+}
+
+.c2t-applicator-track.major .tier,
+.c2t-applicator-track.major .c2t-applicator-dot.filled {
+  color: #ff537d;
+}
+
+.c2t-applicator-track-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 10px;
+}
+
+.c2t-applicator-dot {
+  width: 9px;
+  height: 9px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.42;
+}
+
+.c2t-applicator-dot.filled {
+  background: currentColor;
+  opacity: 1;
+  box-shadow: 0 0 4px currentColor;
+}
+
+.c2t-applicator-track.minor { color: #59d9e8; }
+.c2t-applicator-track.moderate { color: #ffb13b; }
+.c2t-applicator-track.major { color: #ff537d; }
+
+.c2t-applicator-hinder {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(255,255,255,0.10);
+  font-size: 10px;
+  text-align: right;
+  opacity: 0.82;
+}
+
+.c2t-applicator-resize {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  opacity: 0.55;
+}
+
+.c2t-applicator-resize::after {
+  content: "";
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid rgba(255,255,255,0.75);
+  border-bottom: 2px solid rgba(255,255,255,0.75);
+}
+
+.c2t-wound-applicator.collapsed {
+  width: 210px !important;
+  height: auto !important;
+  min-height: 0;
+}
+
+.c2t-wound-applicator.collapsed .c2t-applicator-resize {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .c2t-applicator-tracks {
+    grid-template-columns: 1fr;
+  }
+}

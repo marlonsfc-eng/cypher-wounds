@@ -469,7 +469,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "playersEdit", { name: "CW.Settings.Players.Name", hint: "CW.Settings.Players.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "tokenHUD", { name: "CW.Settings.TokenHUD.Name", hint: "CW.Settings.TokenHUD.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "universalWoundApplicator", { name: "Aplicador universal de wounds", hint: "Exibe um painel flutuante para aplicar e curar wounds sem abrir a ficha.", scope: "world", config: true, type: Boolean, default: true });
-  game.settings.register(MODULE_ID, "tokenCircles", { name: "CW.Settings.TokenCircles.Name", hint: "CW.Settings.TokenCircles.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "tokenCircles", { name: "CW.Settings.TokenCircles.Name", hint: "Deprecated: wound indicators are now shown in the universal wound panel.", scope: "world", config: false, type: Boolean, default: false });
   game.settings.register(MODULE_ID, "tokenWoundDisplay", { name: "Wounds: visualização no token", hint: "Compacta mantém os indicadores dentro do token; trilhas preserva os círculos externos antigos.", scope: "world", config: true, type: String, choices: { compact: "Medidores compactos", tracks: "Trilhas de círculos (legado)" }, default: "compact" });
   game.settings.register(MODULE_ID, "tokenCircleVisibility", { name: "CW.Settings.TokenVisibility.Name", hint: "CW.Settings.TokenVisibility.Hint", scope: "world", config: true, type: String, choices: { all: "CW.Settings.TokenVisibility.All", owners: "CW.Settings.TokenVisibility.Owners", none: "CW.Settings.TokenVisibility.None" }, default: "owners" });
   game.settings.register(MODULE_ID, "autoRollHindrance", { name: "CW.Settings.AutoHinder.Name", hint: "CW.Settings.AutoHinder.Hint", scope: "world", config: true, type: Boolean, default: true });
@@ -612,14 +612,82 @@ function saveApplicatorPosition(left, top) {
   localStorage.setItem(`${MODULE_ID}.applicatorPosition`, JSON.stringify({left, top}));
 }
 
-function refreshUniversalApplicator() {
+function getApplicatorSize() {
+  try {
+    return JSON.parse(localStorage.getItem(`${MODULE_ID}.applicatorSize`) || "null");
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveApplicatorSize(width, height) {
+  localStorage.setItem(`${MODULE_ID}.applicatorSize`, JSON.stringify({width, height}));
+}
+
+function clearApplicatorSize() {
+  localStorage.removeItem(`${MODULE_ID}.applicatorSize`);
+}
+
+async function refreshUniversalApplicator() {
   const panel = $("#c2t-universal-wound-applicator");
   if (!panel.length) return;
 
   const targets = resolveApplicatorTargets();
   panel.find(".c2t-applicator-target").text(applicatorTargetLabel(targets));
   panel.toggleClass("disabled", !targets.length);
-  panel.find("button").prop("disabled", !targets.length);
+  panel.find("button[data-action]").prop("disabled", !targets.length);
+
+  const status = panel.find(".c2t-applicator-status");
+  status.empty();
+
+  if (!targets.length) {
+    status.append('<div class="c2t-applicator-empty">Selecione ou marque um personagem como alvo.</div>');
+    return;
+  }
+
+  for (const actor of targets) {
+    const data = await getData(actor);
+    const actorRow = $(`
+      <div class="c2t-applicator-actor" data-actor-id="${actor.id}">
+        <div class="c2t-applicator-actor-name">${actor.name}</div>
+        <div class="c2t-applicator-tracks"></div>
+        <div class="c2t-applicator-hinder">
+          Hinder global: <strong>${hindrance(data)}</strong>
+        </div>
+      </div>
+    `);
+
+    const tracks = actorRow.find(".c2t-applicator-tracks");
+    const config = [
+      ["minor", "I", "Minor"],
+      ["moderate", "II", "Moderate"],
+      ["major", "III", "Major"]
+    ];
+
+    for (const [severity, tier, label] of config) {
+      const current = Number(data.current[severity] ?? 0);
+      const capacity = Number(data.capacity[severity] ?? 0);
+      const track = $(`
+        <div class="c2t-applicator-track ${severity}">
+          <div class="c2t-applicator-track-head">
+            <span class="tier">${tier}</span>
+            <span class="label">${label}</span>
+            <strong>${current}/${capacity}</strong>
+          </div>
+          <div class="c2t-applicator-track-dots" aria-label="${label}: ${current} de ${capacity}"></div>
+        </div>
+      `);
+
+      const dots = track.find(".c2t-applicator-track-dots");
+      const maxVisible = Math.max(0, capacity);
+      for (let i = 0; i < maxVisible; i++) {
+        dots.append(`<span class="c2t-applicator-dot ${i < current ? "filled" : ""}"></span>`);
+      }
+      tracks.append(track);
+    }
+
+    status.append(actorRow);
+  }
 }
 
 async function applyToApplicatorTargets(action, severity=null) {
@@ -629,12 +697,12 @@ async function applyToApplicatorTargets(action, severity=null) {
   }
 
   for (const actor of targets) {
-    if (action === "heal") await healOne(actor);
+    if (action === "heal") await healWound(actor);
     else if (action === "add" && SEVERITIES.includes(severity)) await takeWound(actor, severity);
     else if (action === "remove" && SEVERITIES.includes(severity)) {
       const data = await getData(actor);
       data.current[severity] = Math.max(0, Number(data.current[severity] ?? 0) - 1);
-      await setData(actor, data);
+      await saveData(actor, data);
     }
   }
 
@@ -645,6 +713,42 @@ async function applyToApplicatorTargets(action, severity=null) {
       : `Aplicado 1 ${universalSeverityLabel(severity)} wound`;
 
   ui.notifications.info(`${verb} em ${applicatorTargetLabel(targets)}.`);
+
+  panel.find(".c2t-applicator-reset-size").on("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearApplicatorSize();
+    panel.css({width: "", height: ""});
+  });
+
+  const resizeHandle = panel.find(".c2t-applicator-resize");
+  resizeHandle.on("pointerdown", event => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rect = panel[0].getBoundingClientRect();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = rect.width;
+    const startHeight = rect.height;
+
+    const move = moveEvent => {
+      const width = Math.max(230, Math.min(window.innerWidth - rect.left, startWidth + moveEvent.clientX - startX));
+      const height = Math.max(160, Math.min(window.innerHeight - rect.top, startHeight + moveEvent.clientY - startY));
+      panel.css({width: `${width}px`, height: `${height}px`});
+    };
+
+    const up = () => {
+      $(window).off("pointermove.c2tResize", move);
+      $(window).off("pointerup.c2tResize", up);
+      const finalRect = panel[0].getBoundingClientRect();
+      saveApplicatorSize(finalRect.width, finalRect.height);
+    };
+
+    $(window).on("pointermove.c2tResize", move);
+    $(window).on("pointerup.c2tResize", up);
+  });
+
   refreshUniversalApplicator();
 }
 
@@ -656,15 +760,23 @@ function makeUniversalWoundApplicator() {
     <section id="c2t-universal-wound-applicator" class="c2t-wound-applicator">
       <header class="c2t-applicator-header">
         <span><i class="fa-solid fa-heart-crack"></i> Wounds</span>
-        <button type="button" class="c2t-applicator-collapse" title="Recolher">
-          <i class="fa-solid fa-chevron-down"></i>
-        </button>
+        <div class="c2t-applicator-header-actions">
+          <button type="button" class="c2t-applicator-reset-size" title="Restaurar tamanho">
+            <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
+          </button>
+          <button type="button" class="c2t-applicator-collapse" title="Recolher">
+            <i class="fa-solid fa-chevron-down"></i>
+          </button>
+        </div>
       </header>
       <div class="c2t-applicator-body">
         <div class="c2t-applicator-target-row">
           <span class="c2t-applicator-target-label">Alvo:</span>
           <strong class="c2t-applicator-target">Nenhum personagem</strong>
         </div>
+
+        <div class="c2t-applicator-status"></div>
+
         <div class="c2t-applicator-actions">
           <button type="button" data-action="add" data-severity="minor" class="minor" title="Aplicar Minor wound">I</button>
           <button type="button" data-action="add" data-severity="moderate" class="moderate" title="Aplicar Moderate wound">II</button>
@@ -675,6 +787,7 @@ function makeUniversalWoundApplicator() {
         </div>
         <div class="c2t-applicator-hint">Shift + clique remove um wound do tipo escolhido.</div>
       </div>
+      <div class="c2t-applicator-resize" title="Redimensionar"></div>
     </section>
   `);
 
@@ -683,6 +796,14 @@ function makeUniversalWoundApplicator() {
   const saved = getApplicatorPosition();
   if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
     panel.css({left: `${saved.left}px`, top: `${saved.top}px`, bottom: "auto"});
+  }
+
+  const savedSize = getApplicatorSize();
+  if (savedSize && Number.isFinite(savedSize.width) && Number.isFinite(savedSize.height)) {
+    panel.css({
+      width: `${savedSize.width}px`,
+      height: `${savedSize.height}px`
+    });
   }
 
   panel.find("[data-action]").on("click", async event => {
