@@ -145,7 +145,7 @@ function nativeRollDefaults(item) {
   const current = foundry.utils.deepClone(item.system ?? {});
   return {
     "system.version": Number(current.version ?? 2) || 2,
-    "system.basic.cost": Number(current.basic?.cost ?? 0) || 0,
+    "system.basic.cost": String(current.basic?.cost ?? "0"),
     "system.basic.pool": String(current.basic?.pool ?? "Pool"),
     "system.settings.general.sorting": String(current.settings?.general?.sorting ?? "Ability"),
     "system.settings.general.spellTier": String(current.settings?.general?.spellTier ?? "low"),
@@ -236,18 +236,14 @@ Hooks.on("renderActorSheet", (app, html) => {
     const item = actor.items.get(itemId);
     if (!item || fget(item, "category") !== "abilities") return;
 
-    // Remove the old Toolkit play button. Imported abilities now use the
-    // exact same .item-roll control and itemRollMacro as native abilities.
+    // Never alter or remove the Cypher System's native .item-roll button.
+    // Only add a fallback if the active sheet template does not render it.
     row.find(".c2t-use, .c2t-native-fallback").remove();
-
-    // Only provide a fallback when a custom sheet truly omits the native button.
-    // The fallback still calls itemRollMacro, so costs, Edge, Effort and Pool
-    // payment remain entirely under the Cypher System's own automation.
     if (!row.find(".item-roll").length) {
       const fallback = $('<a class="item-control c2t-native-fallback" title="Roll Item"><i class="fa-solid fa-dice-d20"></i></a>');
       fallback.on("click", async event => {
         event.preventDefault();
-        event.stopImmediatePropagation();
+        event.stopPropagation();
         await useNativeItemRoll(actor, item);
       });
       row.find(".item-controls").prepend(fallback);

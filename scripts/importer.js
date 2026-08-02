@@ -65,7 +65,7 @@ function itemData(entry, category="abilities", context=null) {
   const origin = resolveOrigin(entry, category, context ?? {types:new Map(), foci:new Map()});
   const system = foundry.utils.mergeObject({
     version: 2, description: htmlFromEntry(entry), archived: false, favorite: false,
-    basic: { cost: Number(entry.cost ?? 0) || 0, pool: String(entry.pool ?? "Pool") },
+    basic: { cost: String(entry.cost ?? "0"), pool: String(entry.pool ?? "Pool") },
     settings: {
       general: { sorting: String(entry.sorting ?? (category === "types" ? "Type" : category === "foci" ? "Focus" : category === "descriptors" ? "Descriptor" : "Ability")), spellTier: String(entry.spellTier ?? "low"), unmaskedForm: "Mask" },
       rollButton: {

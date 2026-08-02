@@ -2,7 +2,7 @@
   "id": "cypher-2-toolkit",
   "title": "Cypher 2 Toolkit",
   "description": "Ferimentos do Cypher 2, special rolls e importador privado de Types, Foci, Descriptors e Abilities.",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "authors": [
     {
       "name": "Marlon Campos"

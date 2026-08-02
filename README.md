@@ -179,3 +179,10 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Restores the Cypher System native Roll Item button for imported abilities on Foundry v13.
 - Imported abilities now use itemRollMacro, restoring automatic base cost, Edge, Effort, Pool payment, and other native roll behavior.
 - Existing imported abilities are normalized automatically when the world starts.
+
+
+## v0.4.4
+- Fixes imported ability buttons on Foundry v13.
+- Stores ability costs as strings, as required by the v13 Cypher System itemRollMacro (`0`, `2`, `3+`, etc.).
+- Migrates existing imported abilities automatically when the world starts.
+- Leaves the native Roll Item button and its event listener untouched.
