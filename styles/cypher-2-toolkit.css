@@ -115,3 +115,10 @@
   font-weight: 700;
   color: var(--color-text-dark-primary, inherit);
 }
+
+
+/* Cypher 2 special rolls */
+.c2t-special-roll-card{margin:.55rem 0 0;padding:.55rem .65rem;border:1px solid rgba(127,127,127,.55);border-radius:6px;background:rgba(127,127,127,.09)}
+.c2t-special-roll-card header{font-weight:800;margin-bottom:.25rem}.c2t-special-roll-card p{margin:.2rem 0}
+.c2t-special-17,.c2t-special-18{border-color:rgba(55,120,180,.75)}.c2t-special-19,.c2t-special-20{border-color:rgba(45,145,80,.8)}
+.c2t-special-choice{display:grid;gap:.4rem}.c2t-special-choice>p{margin:0 0 .25rem}.c2t-special-choice button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;height:auto;min-height:44px;padding:.45rem .6rem}.c2t-special-choice button span{font-size:.8rem;opacity:.8;white-space:normal}

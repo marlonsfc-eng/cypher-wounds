@@ -1,3 +1,4 @@
+import "./special-rolls.js";
 import {CypherContentImporter, importCypherContent} from "./importer.js";
 import "./content-automation.js";
 const MODULE_ID="cypher-2-toolkit";

@@ -2,7 +2,7 @@
   "id": "cypher-2-toolkit",
   "title": "Cypher 2 Toolkit",
   "description": "Ferimentos do Cypher 2 e importador privado de Types, Foci e Abilities para compêndios do mundo no sistema Cypher System.",
-  "version": "0.3.1",
+  "version": "0.4.1",
   "authors": [
     {
       "name": "Marlon Campos"
@@ -34,8 +34,9 @@
     }
   ],
   "compatibility": {
-    "minimum": "12",
-    "verified": "14"
+    "minimum": "13",
+    "verified": "13",
+    "maximum": "14"
   },
   "relationships": {
     "systems": [

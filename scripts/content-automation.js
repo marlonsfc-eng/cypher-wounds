@@ -70,18 +70,55 @@ async function applyPackage(item) {
 }
 
 async function useImportedAbility(actor, item) {
-  const cost = Number(item.system.basic.cost ?? 0);
-  const pool = String(item.system.basic.pool ?? "Pool");
-  if (cost > 0 && ["Might", "Speed", "Intellect"].includes(pool)) {
-    const key = pool.toLowerCase();
-    const current = actor.system.pools?.[key]?.value ?? 0;
-    const edge = actor.system.pools?.[key]?.edge ?? 0;
-    const paid = Math.max(0, cost - edge);
-    if (current < paid) return ui.notifications.warn(`${actor.name} does not have enough ${pool}.`);
-    await actor.update({ [`system.pools.${key}.value`]: current - paid });
+  try {
+    // Use the Cypher System's own roll engine. This is intentionally loaded
+    // at click time so the Toolkit remains compatible with Foundry v13 and v14.
+    const macros = await import("/systems/cyphersystem/module/macros/macros.js");
+    if (typeof macros.allInOneRollDialog !== "function") {
+      throw new Error("The Cypher System roll function was not found.");
+    }
+
+    const roll = item.system?.settings?.rollButton ?? {};
+    const pool = String(roll.pool ?? item.system?.basic?.pool ?? "Pool");
+    const skill = String(roll.skill ?? "Practiced");
+    const assets = Number(roll.assets ?? 0) || 0;
+    const effort1 = Number(roll.effort1 ?? 0) || 0;
+    const effort2 = Number(roll.effort2 ?? 0) || 0;
+    const effort3 = Number(roll.effort3 ?? 0) || 0;
+    const additionalCost = Number(roll.additionalCost ?? 0) || 0;
+    const additionalSteps = Number(roll.additionalSteps ?? 0) || 0;
+    const stepModifier = String(roll.stepModifier ?? "eased");
+    const damage = Number(roll.damage ?? 0) || 0;
+    const damagePerLOE = Number(roll.damagePerLOE ?? 3) || 3;
+    const teen = String(roll.teen ?? "");
+    const bonus = Number(roll.bonus ?? 0) || 0;
+
+    // Keep the normal dialog visible. The system itself handles ability cost,
+    // Edge, Effort, damage, chat output, and the Toolkit wound modifier.
+    await macros.allInOneRollDialog(
+      actor,
+      pool,
+      skill,
+      assets,
+      effort1,
+      effort2,
+      additionalCost,
+      additionalSteps,
+      stepModifier,
+      item.name,
+      damage,
+      effort3,
+      damagePerLOE,
+      teen,
+      false,
+      false,
+      item.id,
+      bonus
+    );
+  } catch (error) {
+    console.error(`${ID} imported ability roll failed`, error);
+    ui.notifications.error(`Cypher 2 Toolkit: ${error.message}`);
   }
-  const content = `<div class="c2t-ability-card"><h3>${item.name}</h3>${item.system.description || ""}</div>`;
-  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content });
 }
 
 Hooks.on("createItem", async item => {
@@ -96,24 +133,25 @@ Hooks.on("renderActorSheet", (app, html) => {
   const actor = app.actor;
   if (!actor) return;
 
-  html.find("li.item[data-item-id]").each((_, element) => {
+  // Foundry v13 supplies a jQuery object here. Foundry v14 may supply either
+  // jQuery or an HTMLElement depending on the sheet generation.
+  const root = html?.find ? html : $(html);
+  root.find("li.item[data-item-id]").each((_, element) => {
     const row = $(element);
-    const item = actor.items.get(row.data("item-id"));
+    const itemId = row.attr("data-item-id") ?? row.data("item-id");
+    const item = actor.items.get(itemId);
     if (!item || fget(item, "category") !== "abilities") return;
 
-    // Imported abilities use the Cypher System's native item-pay/roll control.
-    // Remove buttons created by older Toolkit versions to avoid overlapping click handlers.
-    row.find(".c2t-use").remove();
-
-    // Only add a fallback when the current Cypher sheet exposes no native roll button.
-    if (!row.find(".item-pay").length && !row.find(".c2t-native-fallback").length) {
-      const button = $('<a class="item-control c2t-native-fallback" title="Post ability to chat"><i class="fa-solid fa-message"></i></a>');
-      button.on("click", async event => {
-        event.preventDefault();
-        event.stopPropagation();
-        await useImportedAbility(actor, item);
-      });
-      row.find(".item-controls").prepend(button);
-    }
+    // Imported abilities receive one Toolkit button that calls the system's
+    // native all-in-one roll function directly. This avoids relying on the
+    // sheet's version-specific click listener.
+    row.find(".c2t-use, .c2t-native-fallback").remove();
+    const button = $('<a class="item-control c2t-use" title="Use ability"><i class="fa-solid fa-play"></i></a>');
+    button.on("click", async event => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      await useImportedAbility(actor, item);
+    });
+    row.find(".item-controls").prepend(button);
   });
 });

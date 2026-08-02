@@ -1,3 +1,11 @@
+# Cypher 2 Toolkit
+
+## v0.4.1
+
+- Corrige o uso de habilidades importadas no Foundry VTT 13.
+- O botão de uso chama diretamente o motor All-in-One Roll do sistema Cypher.
+- Mantém compatibilidade com a automação de wounds e special rolls.
+
 # Cypher 2 Toolkit — v0.1.0
 
 Módulo comunitário para Foundry VTT que reúne:
@@ -152,3 +160,11 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Imported abilities now rely on the Cypher System native roll/pay button.
 - Remove the redundant Toolkit play button that could intercept ability clicks.
 - Add a chat-only fallback only when the system sheet has no native roll control.
+
+
+## Special rolls (Cypher 2)
+- Natural 17 on a successful damage-dealing attack: +1 damage automatically.
+- Natural 18 on a successful damage-dealing attack: +2 damage automatically.
+- Natural 19: choose +3 damage (damage attacks only) or a minor effect.
+- Natural 20: choose +4 damage (damage attacks only) or a major effect; the action's Pool cost is restored automatically.
+- The effect picker lists the common combat effects from the Cypher 2 rules and permits an agreed custom effect.
