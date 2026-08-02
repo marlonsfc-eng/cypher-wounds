@@ -159,3 +159,99 @@
   min-height: 28px;
   font-weight: 700;
 }
+
+
+/* Universal wound applicator */
+.c2t-wound-applicator {
+  position: fixed;
+  left: 212px;
+  bottom: 18px;
+  z-index: 100;
+  width: 210px;
+  color: #f2f2f2;
+  background: rgba(25, 27, 31, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+  user-select: none;
+}
+.c2t-wound-applicator.disabled {
+  opacity: 0.72;
+}
+.c2t-applicator-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 7px 4px 9px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: move;
+  background: rgba(255, 255, 255, 0.07);
+}
+.c2t-applicator-collapse {
+  width: 24px;
+  height: 22px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.c2t-applicator-body {
+  padding: 7px;
+}
+.c2t-wound-applicator.collapsed .c2t-applicator-body {
+  display: none;
+}
+.c2t-applicator-target-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  margin-bottom: 7px;
+  font-size: 11px;
+}
+.c2t-applicator-target {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c2t-applicator-target-label {
+  opacity: 0.72;
+}
+.c2t-applicator-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.c2t-applicator-actions button {
+  height: 30px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  font-weight: 900;
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.08);
+}
+.c2t-applicator-actions button.minor { color: #59d9e8; }
+.c2t-applicator-actions button.moderate { color: #ffb13b; }
+.c2t-applicator-actions button.major { color: #ff537d; }
+.c2t-applicator-actions button.heal { color: #77d68d; }
+.c2t-applicator-actions button:hover:not(:disabled) {
+  background: rgba(255,255,255,0.18);
+  box-shadow: 0 0 7px currentColor;
+}
+.c2t-applicator-hint {
+  margin-top: 6px;
+  font-size: 9px;
+  line-height: 1.2;
+  text-align: center;
+  opacity: 0.6;
+}

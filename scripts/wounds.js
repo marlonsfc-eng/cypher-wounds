@@ -462,124 +462,17 @@ function applyRollHindranceNonDestructive(app, html) {
 }
 
 
-function poolDamageToWound(damage) {
-  const amount = Number(damage);
-  if (!Number.isFinite(amount) || amount <= 0) return null;
-  if (amount <= 4) return "minor";
-  if (amount <= 8) return "moderate";
-  return "major";
-}
-
-function severityLabel(severity) {
-  const labels = {
-    minor: game.i18n.localize("CW.Minor") || "Minor",
-    moderate: game.i18n.localize("CW.Moderate") || "Moderate",
-    major: game.i18n.localize("CW.Major") || "Major"
-  };
-  return labels[severity] ?? severity;
-}
-
-function getMessageActor(message) {
-  const actorId = message?.speaker?.actor;
-  if (actorId) return game.actors.get(actorId) ?? null;
-  const tokenId = message?.speaker?.token;
-  return tokenId ? canvas?.tokens?.get(tokenId)?.actor ?? null : null;
-}
-
-function getNpcAttackDamage(message, actor) {
-  if (!actor || actor.type !== "npc") return null;
-
-  const itemId =
-    message.getFlag?.("cyphersystem", "itemID") ??
-    message.flags?.itemID ??
-    message.flags?.cyphersystem?.itemID ??
-    null;
-
-  const item = itemId ? actor.items?.get(itemId) : null;
-  if (item?.type === "attack") {
-    const damage = Number(item.system?.basic?.damage);
-    if (Number.isFinite(damage) && damage > 0) return damage;
-  }
-
-  const explicitCandidates = [
-    message.getFlag?.(MODULE_ID, "npcDamage"),
-    message.flags?.cyphersystem?.damage,
-    message.flags?.damage,
-    message.rolls?.[0]?.options?.damage
-  ];
-  for (const candidate of explicitCandidates) {
-    const damage = Number(candidate);
-    if (Number.isFinite(damage) && damage > 0) return damage;
-  }
-
-  const content = String(message.content ?? "");
-  const looksLikeAttack = Boolean(
-    item?.type === "attack" ||
-    /damage inflicted|damage|dano causado|dano infligido|ataque|attack/i.test(content)
-  );
-  if (!looksLikeAttack) return null;
-
-  const actorDamage = Number(actor.system?.combat?.damage);
-  return Number.isFinite(actorDamage) && actorDamage > 0 ? actorDamage : null;
-}
-
-function validPlayerActor(actor) {
-  return actor && actor.type === "pc" && (game.user.isGM || actor.isOwner);
-}
-
-function resolveQuickWoundTargets() {
-  const targeted = [...(game.user.targets ?? [])]
-    .map(token => token.actor)
-    .filter(validPlayerActor);
-  if (targeted.length) return [...new Set(targeted)];
-
-  const controlled = (canvas?.tokens?.controlled ?? [])
-    .map(token => token.actor)
-    .filter(validPlayerActor);
-  if (controlled.length) return [...new Set(controlled)];
-
-  if (validPlayerActor(game.user.character)) return [game.user.character];
-
-  const owned = (game.actors ?? []).filter(actor => validPlayerActor(actor));
-  return owned.length === 1 ? owned : [];
-}
-
-async function applyQuickWound(severity) {
-  const targets = resolveQuickWoundTargets();
-  if (!targets.length) {
-    return ui.notifications.warn(
-      "Selecione ou escolha como alvo um token de personagem antes de marcar o wound."
-    );
-  }
-  for (const actor of targets) await takeWound(actor, severity);
-}
-
-function npcConversionCard(damage, severity) {
-  const label = severityLabel(severity);
-  return `
-    <div class="c2t-npc-wound-conversion" data-severity="${severity}">
-      <div class="c2t-npc-wound-title">
-        <i class="fa-solid fa-heart-crack"></i>
-        <strong>${damage} damage → ${label} wound</strong>
-      </div>
-      <div class="c2t-npc-wound-rule">NPC damage conversion: 1–4 Minor, 5–8 Moderate, 9+ Major.</div>
-      <button type="button" class="c2t-apply-npc-wound" data-severity="${severity}">
-        Apply ${label} wound
-      </button>
-    </div>`;
-}
-
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "injectSheet", { name: "CW.Settings.Inject.Name", hint: "CW.Settings.Inject.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "chatAnnouncements", { name: "CW.Settings.Chat.Name", hint: "CW.Settings.Chat.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "markDefeated", { name: "CW.Settings.Defeated.Name", hint: "CW.Settings.Defeated.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "playersEdit", { name: "CW.Settings.Players.Name", hint: "CW.Settings.Players.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "tokenHUD", { name: "CW.Settings.TokenHUD.Name", hint: "CW.Settings.TokenHUD.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "universalWoundApplicator", { name: "Aplicador universal de wounds", hint: "Exibe um painel flutuante para aplicar e curar wounds sem abrir a ficha.", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "tokenCircles", { name: "CW.Settings.TokenCircles.Name", hint: "CW.Settings.TokenCircles.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "tokenWoundDisplay", { name: "Wounds: visualização no token", hint: "Compacta mantém os indicadores dentro do token; trilhas preserva os círculos externos antigos.", scope: "world", config: true, type: String, choices: { compact: "Medidores compactos", tracks: "Trilhas de círculos (legado)" }, default: "compact" });
   game.settings.register(MODULE_ID, "tokenCircleVisibility", { name: "CW.Settings.TokenVisibility.Name", hint: "CW.Settings.TokenVisibility.Hint", scope: "world", config: true, type: String, choices: { all: "CW.Settings.TokenVisibility.All", owners: "CW.Settings.TokenVisibility.Owners", none: "CW.Settings.TokenVisibility.None" }, default: "owners" });
   game.settings.register(MODULE_ID, "autoRollHindrance", { name: "CW.Settings.AutoHinder.Name", hint: "CW.Settings.AutoHinder.Hint", scope: "world", config: true, type: Boolean, default: true });
-  game.settings.register(MODULE_ID, "npcDamageConversion", { name: "Converter dano de NPC em wounds", hint: "Mostra automaticamente o wound correspondente nos cards de ataque de NPC e adiciona um botão de aplicação rápida.", scope: "world", config: true, type: Boolean, default: true });
 });
 
 async function migrateLegacyWounds() {
@@ -608,14 +501,44 @@ Hooks.on("renderActorSheet", injectSheet);
 Hooks.on("getActorSheetHeaderButtons", (app, buttons) => { if (app.actor?.type !== "npc") buttons.unshift({ label: i18n("CW.Title"), class: "cypher-wounds-open", icon: "fas fa-heart-crack", onclick: () => openTracker(app.actor) }); });
 Hooks.on("renderTokenHUD", async (hud, html, data) => {
   if (!game.settings.get(MODULE_ID, "tokenHUD")) return;
-  const actor = canvas.tokens.get(data._id)?.actor;
+
+  // Foundry v13 exposes the Token through hud.object. Older code relied on
+  // data._id, which is not consistently present in v13.
+  const token =
+    hud?.object ??
+    canvas?.tokens?.get?.(data?._id) ??
+    canvas?.tokens?.get?.(data?.id) ??
+    null;
+
+  const actor = token?.actor ?? token?.document?.actor ?? null;
   if (!actor || actor.type === "npc") return;
+  if (!(game.user.isGM || actor.isOwner)) return;
+
+  const root = html?.find ? html : $(html);
+  const rightColumn = root.find(".col.right");
+  const leftColumn = root.find(".col.left");
+  const column = rightColumn.length ? rightColumn : leftColumn;
+  if (!column.length) {
+    console.warn(`${MODULE_ID} | Token HUD column not found`, {hud, html, data});
+    return;
+  }
+
+  // Avoid duplicates when the HUD is re-rendered.
+  root.find(".cypher-wounds-hud, .c2t-quick-wound").remove();
 
   const wounds = await getData(actor);
-  const column = html.find(".col.right");
 
-  const tracker = $(`<div class="control-icon cypher-wounds-hud ${hindrance(wounds) ? "active" : ""}" title="Abrir controle de wounds"><i class="fa-solid fa-heart-crack"></i></div>`);
-  tracker.on("click", () => openTracker(actor));
+  const tracker = $(`
+    <div class="control-icon cypher-wounds-hud ${hindrance(wounds) ? "active" : ""}"
+         title="Abrir controle de wounds">
+      <i class="fa-solid fa-heart-crack"></i>
+    </div>
+  `);
+  tracker.on("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    openTracker(actor);
+  });
   column.append(tracker);
 
   const quick = [
@@ -623,8 +546,13 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
     ["moderate", "II", "Marcar Moderate wound"],
     ["major", "III", "Marcar Major wound"]
   ];
+
   for (const [severity, mark, title] of quick) {
-    const button = $(`<div class="control-icon c2t-quick-wound ${severity}" title="${title}"><span>${mark}</span></div>`);
+    const button = $(`
+      <div class="control-icon c2t-quick-wound ${severity}" title="${title}">
+        <span>${mark}</span>
+      </div>
+    `);
     button.on("click", async event => {
       event.preventDefault();
       event.stopPropagation();
@@ -634,27 +562,184 @@ Hooks.on("renderTokenHUD", async (hud, html, data) => {
   }
 });
 
-Hooks.on("renderChatMessage", (message, html) => {
-  if (!game.settings.get(MODULE_ID, "npcDamageConversion")) return;
-  const actor = getMessageActor(message);
-  const damage = getNpcAttackDamage(message, actor);
-  const severity = poolDamageToWound(damage);
-  if (!severity) return;
 
-  const root = html?.find ? html : $(html);
-  if (root.find(".c2t-npc-wound-conversion").length) return;
-  root.find(".message-content").append(npcConversionCard(damage, severity));
-});
 
-Hooks.on("renderChatLog", (_app, html) => {
-  html.off("click.c2tNpcWound", ".c2t-apply-npc-wound");
-  html.on("click.c2tNpcWound", ".c2t-apply-npc-wound", async event => {
+function universalSeverityLabel(severity) {
+  return ({minor: "Minor", moderate: "Moderate", major: "Major"})[severity] ?? severity;
+}
+
+function getOwnedPcActors() {
+  return (game.actors ?? []).filter(actor =>
+    actor.type === "pc" && (game.user.isGM || actor.isOwner)
+  );
+}
+
+function resolveApplicatorTargets() {
+  const targeted = [...(game.user.targets ?? [])]
+    .map(token => token.actor)
+    .filter(actor => actor?.type === "pc" && (game.user.isGM || actor.isOwner));
+  if (targeted.length) return [...new Map(targeted.map(actor => [actor.id, actor])).values()];
+
+  const controlled = (canvas?.tokens?.controlled ?? [])
+    .map(token => token.actor)
+    .filter(actor => actor?.type === "pc" && (game.user.isGM || actor.isOwner));
+  if (controlled.length) return [...new Map(controlled.map(actor => [actor.id, actor])).values()];
+
+  if (game.user.character?.type === "pc" && (game.user.isGM || game.user.character.isOwner)) {
+    return [game.user.character];
+  }
+
+  const owned = getOwnedPcActors();
+  return owned.length === 1 ? owned : [];
+}
+
+function applicatorTargetLabel(targets) {
+  if (!targets.length) return "Nenhum personagem";
+  if (targets.length === 1) return targets[0].name;
+  if (targets.length <= 3) return targets.map(actor => actor.name).join(", ");
+  return `${targets.length} personagens`;
+}
+
+function getApplicatorPosition() {
+  try {
+    return JSON.parse(localStorage.getItem(`${MODULE_ID}.applicatorPosition`) || "null");
+  } catch (_) {
+    return null;
+  }
+}
+
+function saveApplicatorPosition(left, top) {
+  localStorage.setItem(`${MODULE_ID}.applicatorPosition`, JSON.stringify({left, top}));
+}
+
+function refreshUniversalApplicator() {
+  const panel = $("#c2t-universal-wound-applicator");
+  if (!panel.length) return;
+
+  const targets = resolveApplicatorTargets();
+  panel.find(".c2t-applicator-target").text(applicatorTargetLabel(targets));
+  panel.toggleClass("disabled", !targets.length);
+  panel.find("button").prop("disabled", !targets.length);
+}
+
+async function applyToApplicatorTargets(action, severity=null) {
+  const targets = resolveApplicatorTargets();
+  if (!targets.length) {
+    return ui.notifications.warn("Selecione um token de personagem ou marque-o como alvo.");
+  }
+
+  for (const actor of targets) {
+    if (action === "heal") await healOne(actor);
+    else if (action === "add" && SEVERITIES.includes(severity)) await takeWound(actor, severity);
+    else if (action === "remove" && SEVERITIES.includes(severity)) {
+      const data = await getData(actor);
+      data.current[severity] = Math.max(0, Number(data.current[severity] ?? 0) - 1);
+      await setData(actor, data);
+    }
+  }
+
+  const verb = action === "heal"
+    ? "Curado 1 wound"
+    : action === "remove"
+      ? `Removido 1 ${universalSeverityLabel(severity)} wound`
+      : `Aplicado 1 ${universalSeverityLabel(severity)} wound`;
+
+  ui.notifications.info(`${verb} em ${applicatorTargetLabel(targets)}.`);
+  refreshUniversalApplicator();
+}
+
+function makeUniversalWoundApplicator() {
+  $("#c2t-universal-wound-applicator").remove();
+  if (!game.settings.get(MODULE_ID, "universalWoundApplicator")) return;
+
+  const panel = $(`
+    <section id="c2t-universal-wound-applicator" class="c2t-wound-applicator">
+      <header class="c2t-applicator-header">
+        <span><i class="fa-solid fa-heart-crack"></i> Wounds</span>
+        <button type="button" class="c2t-applicator-collapse" title="Recolher">
+          <i class="fa-solid fa-chevron-down"></i>
+        </button>
+      </header>
+      <div class="c2t-applicator-body">
+        <div class="c2t-applicator-target-row">
+          <span class="c2t-applicator-target-label">Alvo:</span>
+          <strong class="c2t-applicator-target">Nenhum personagem</strong>
+        </div>
+        <div class="c2t-applicator-actions">
+          <button type="button" data-action="add" data-severity="minor" class="minor" title="Aplicar Minor wound">I</button>
+          <button type="button" data-action="add" data-severity="moderate" class="moderate" title="Aplicar Moderate wound">II</button>
+          <button type="button" data-action="add" data-severity="major" class="major" title="Aplicar Major wound">III</button>
+          <button type="button" data-action="heal" class="heal" title="Curar o wound mais grave">
+            <i class="fa-solid fa-kit-medical"></i>
+          </button>
+        </div>
+        <div class="c2t-applicator-hint">Shift + clique remove um wound do tipo escolhido.</div>
+      </div>
+    </section>
+  `);
+
+  $("body").append(panel);
+
+  const saved = getApplicatorPosition();
+  if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+    panel.css({left: `${saved.left}px`, top: `${saved.top}px`, bottom: "auto"});
+  }
+
+  panel.find("[data-action]").on("click", async event => {
     event.preventDefault();
-    const severity = event.currentTarget.dataset.severity;
-    if (!SEVERITIES.includes(severity)) return;
-    await applyQuickWound(severity);
+    const button = event.currentTarget;
+    const action = button.dataset.action;
+    const severity = button.dataset.severity ?? null;
+    const effectiveAction = action === "add" && event.shiftKey ? "remove" : action;
+    await applyToApplicatorTargets(effectiveAction, severity);
   });
+
+  panel.find(".c2t-applicator-collapse").on("click", event => {
+    event.preventDefault();
+    panel.toggleClass("collapsed");
+    const icon = panel.find(".c2t-applicator-collapse i");
+    icon.toggleClass("fa-chevron-down fa-chevron-up");
+  });
+
+  const header = panel.find(".c2t-applicator-header");
+  header.on("pointerdown", event => {
+    if ($(event.target).closest("button").length) return;
+    event.preventDefault();
+
+    const rect = panel[0].getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+
+    const move = moveEvent => {
+      const width = rect.width;
+      const height = rect.height;
+      const left = Math.max(0, Math.min(window.innerWidth - width, moveEvent.clientX - offsetX));
+      const top = Math.max(0, Math.min(window.innerHeight - height, moveEvent.clientY - offsetY));
+      panel.css({left: `${left}px`, top: `${top}px`, bottom: "auto"});
+    };
+
+    const up = () => {
+      $(window).off("pointermove.c2tApplicator", move);
+      $(window).off("pointerup.c2tApplicator", up);
+      const finalRect = panel[0].getBoundingClientRect();
+      saveApplicatorPosition(finalRect.left, finalRect.top);
+    };
+
+    $(window).on("pointermove.c2tApplicator", move);
+    $(window).on("pointerup.c2tApplicator", up);
+  });
+
+  refreshUniversalApplicator();
+}
+
+Hooks.once("ready", makeUniversalWoundApplicator);
+Hooks.on("canvasReady", () => {
+  makeUniversalWoundApplicator();
+  refreshUniversalApplicator();
 });
+Hooks.on("controlToken", refreshUniversalApplicator);
+Hooks.on("targetToken", refreshUniversalApplicator);
+Hooks.on("updateUser", refreshUniversalApplicator);
 
 Hooks.on("refreshToken", token => refreshTokenWounds(token).catch(console.error));
 Hooks.on("drawToken", token => refreshTokenWounds(token).catch(console.error));
