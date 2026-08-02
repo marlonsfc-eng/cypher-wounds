@@ -122,3 +122,40 @@
 .c2t-special-roll-card header{font-weight:800;margin-bottom:.25rem}.c2t-special-roll-card p{margin:.2rem 0}
 .c2t-special-17,.c2t-special-18{border-color:rgba(55,120,180,.75)}.c2t-special-19,.c2t-special-20{border-color:rgba(45,145,80,.8)}
 .c2t-special-choice{display:grid;gap:.4rem}.c2t-special-choice>p{margin:0 0 .25rem}.c2t-special-choice button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;height:auto;min-height:44px;padding:.45rem .6rem}.c2t-special-choice button span{font-size:.8rem;opacity:.8;white-space:normal}
+
+
+/* Quick wound controls in the Token HUD */
+.c2t-quick-wound {
+  font-weight: 800;
+  font-size: 11px;
+  line-height: 36px;
+  text-align: center;
+}
+.c2t-quick-wound.minor { color: #4ed7e5; }
+.c2t-quick-wound.moderate { color: #ffb23e; }
+.c2t-quick-wound.major { color: #ff4f78; }
+.c2t-quick-wound:hover { text-shadow: 0 0 5px currentColor; }
+
+/* NPC damage-to-wound conversion card */
+.c2t-npc-wound-conversion {
+  margin-top: 6px;
+  padding: 7px;
+  border: 1px solid rgba(120, 30, 45, 0.55);
+  border-radius: 5px;
+  background: rgba(90, 15, 30, 0.08);
+}
+.c2t-npc-wound-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.c2t-npc-wound-rule {
+  margin: 4px 0 6px;
+  font-size: 0.82em;
+  opacity: 0.78;
+}
+.c2t-apply-npc-wound {
+  width: 100%;
+  min-height: 28px;
+  font-weight: 700;
+}

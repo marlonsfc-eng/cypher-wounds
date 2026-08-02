@@ -461,6 +461,114 @@ function applyRollHindranceNonDestructive(app, html) {
   }
 }
 
+
+function poolDamageToWound(damage) {
+  const amount = Number(damage);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  if (amount <= 4) return "minor";
+  if (amount <= 8) return "moderate";
+  return "major";
+}
+
+function severityLabel(severity) {
+  const labels = {
+    minor: game.i18n.localize("CW.Minor") || "Minor",
+    moderate: game.i18n.localize("CW.Moderate") || "Moderate",
+    major: game.i18n.localize("CW.Major") || "Major"
+  };
+  return labels[severity] ?? severity;
+}
+
+function getMessageActor(message) {
+  const actorId = message?.speaker?.actor;
+  if (actorId) return game.actors.get(actorId) ?? null;
+  const tokenId = message?.speaker?.token;
+  return tokenId ? canvas?.tokens?.get(tokenId)?.actor ?? null : null;
+}
+
+function getNpcAttackDamage(message, actor) {
+  if (!actor || actor.type !== "npc") return null;
+
+  const itemId =
+    message.getFlag?.("cyphersystem", "itemID") ??
+    message.flags?.itemID ??
+    message.flags?.cyphersystem?.itemID ??
+    null;
+
+  const item = itemId ? actor.items?.get(itemId) : null;
+  if (item?.type === "attack") {
+    const damage = Number(item.system?.basic?.damage);
+    if (Number.isFinite(damage) && damage > 0) return damage;
+  }
+
+  const explicitCandidates = [
+    message.getFlag?.(MODULE_ID, "npcDamage"),
+    message.flags?.cyphersystem?.damage,
+    message.flags?.damage,
+    message.rolls?.[0]?.options?.damage
+  ];
+  for (const candidate of explicitCandidates) {
+    const damage = Number(candidate);
+    if (Number.isFinite(damage) && damage > 0) return damage;
+  }
+
+  const content = String(message.content ?? "");
+  const looksLikeAttack = Boolean(
+    item?.type === "attack" ||
+    /damage inflicted|damage|dano causado|dano infligido|ataque|attack/i.test(content)
+  );
+  if (!looksLikeAttack) return null;
+
+  const actorDamage = Number(actor.system?.combat?.damage);
+  return Number.isFinite(actorDamage) && actorDamage > 0 ? actorDamage : null;
+}
+
+function validPlayerActor(actor) {
+  return actor && actor.type === "pc" && (game.user.isGM || actor.isOwner);
+}
+
+function resolveQuickWoundTargets() {
+  const targeted = [...(game.user.targets ?? [])]
+    .map(token => token.actor)
+    .filter(validPlayerActor);
+  if (targeted.length) return [...new Set(targeted)];
+
+  const controlled = (canvas?.tokens?.controlled ?? [])
+    .map(token => token.actor)
+    .filter(validPlayerActor);
+  if (controlled.length) return [...new Set(controlled)];
+
+  if (validPlayerActor(game.user.character)) return [game.user.character];
+
+  const owned = (game.actors ?? []).filter(actor => validPlayerActor(actor));
+  return owned.length === 1 ? owned : [];
+}
+
+async function applyQuickWound(severity) {
+  const targets = resolveQuickWoundTargets();
+  if (!targets.length) {
+    return ui.notifications.warn(
+      "Selecione ou escolha como alvo um token de personagem antes de marcar o wound."
+    );
+  }
+  for (const actor of targets) await takeWound(actor, severity);
+}
+
+function npcConversionCard(damage, severity) {
+  const label = severityLabel(severity);
+  return `
+    <div class="c2t-npc-wound-conversion" data-severity="${severity}">
+      <div class="c2t-npc-wound-title">
+        <i class="fa-solid fa-heart-crack"></i>
+        <strong>${damage} damage → ${label} wound</strong>
+      </div>
+      <div class="c2t-npc-wound-rule">NPC damage conversion: 1–4 Minor, 5–8 Moderate, 9+ Major.</div>
+      <button type="button" class="c2t-apply-npc-wound" data-severity="${severity}">
+        Apply ${label} wound
+      </button>
+    </div>`;
+}
+
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "injectSheet", { name: "CW.Settings.Inject.Name", hint: "CW.Settings.Inject.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "chatAnnouncements", { name: "CW.Settings.Chat.Name", hint: "CW.Settings.Chat.Hint", scope: "world", config: true, type: Boolean, default: true });
@@ -471,6 +579,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "tokenWoundDisplay", { name: "Wounds: visualização no token", hint: "Compacta mantém os indicadores dentro do token; trilhas preserva os círculos externos antigos.", scope: "world", config: true, type: String, choices: { compact: "Medidores compactos", tracks: "Trilhas de círculos (legado)" }, default: "compact" });
   game.settings.register(MODULE_ID, "tokenCircleVisibility", { name: "CW.Settings.TokenVisibility.Name", hint: "CW.Settings.TokenVisibility.Hint", scope: "world", config: true, type: String, choices: { all: "CW.Settings.TokenVisibility.All", owners: "CW.Settings.TokenVisibility.Owners", none: "CW.Settings.TokenVisibility.None" }, default: "owners" });
   game.settings.register(MODULE_ID, "autoRollHindrance", { name: "CW.Settings.AutoHinder.Name", hint: "CW.Settings.AutoHinder.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "npcDamageConversion", { name: "Converter dano de NPC em wounds", hint: "Mostra automaticamente o wound correspondente nos cards de ataque de NPC e adiciona um botão de aplicação rápida.", scope: "world", config: true, type: Boolean, default: true });
 });
 
 async function migrateLegacyWounds() {
@@ -500,12 +609,53 @@ Hooks.on("getActorSheetHeaderButtons", (app, buttons) => { if (app.actor?.type !
 Hooks.on("renderTokenHUD", async (hud, html, data) => {
   if (!game.settings.get(MODULE_ID, "tokenHUD")) return;
   const actor = canvas.tokens.get(data._id)?.actor;
-  if (!actor) return;
+  if (!actor || actor.type === "npc") return;
+
   const wounds = await getData(actor);
-  const button = $(`<div class="control-icon cypher-wounds-hud ${hindrance(wounds) ? "active" : ""}" title="${i18n("CW.Open")}"><i class="fa-solid fa-heart-crack"></i></div>`);
-  button.on("click", () => openTracker(actor));
-  html.find(".col.right").append(button);
+  const column = html.find(".col.right");
+
+  const tracker = $(`<div class="control-icon cypher-wounds-hud ${hindrance(wounds) ? "active" : ""}" title="Abrir controle de wounds"><i class="fa-solid fa-heart-crack"></i></div>`);
+  tracker.on("click", () => openTracker(actor));
+  column.append(tracker);
+
+  const quick = [
+    ["minor", "I", "Marcar Minor wound"],
+    ["moderate", "II", "Marcar Moderate wound"],
+    ["major", "III", "Marcar Major wound"]
+  ];
+  for (const [severity, mark, title] of quick) {
+    const button = $(`<div class="control-icon c2t-quick-wound ${severity}" title="${title}"><span>${mark}</span></div>`);
+    button.on("click", async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      await takeWound(actor, severity);
+    });
+    column.append(button);
+  }
 });
+
+Hooks.on("renderChatMessage", (message, html) => {
+  if (!game.settings.get(MODULE_ID, "npcDamageConversion")) return;
+  const actor = getMessageActor(message);
+  const damage = getNpcAttackDamage(message, actor);
+  const severity = poolDamageToWound(damage);
+  if (!severity) return;
+
+  const root = html?.find ? html : $(html);
+  if (root.find(".c2t-npc-wound-conversion").length) return;
+  root.find(".message-content").append(npcConversionCard(damage, severity));
+});
+
+Hooks.on("renderChatLog", (_app, html) => {
+  html.off("click.c2tNpcWound", ".c2t-apply-npc-wound");
+  html.on("click.c2tNpcWound", ".c2t-apply-npc-wound", async event => {
+    event.preventDefault();
+    const severity = event.currentTarget.dataset.severity;
+    if (!SEVERITIES.includes(severity)) return;
+    await applyQuickWound(severity);
+  });
+});
+
 Hooks.on("refreshToken", token => refreshTokenWounds(token).catch(console.error));
 Hooks.on("drawToken", token => refreshTokenWounds(token).catch(console.error));
 Hooks.on("updateActor", actor => {

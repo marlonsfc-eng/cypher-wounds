@@ -194,3 +194,10 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Each meter shows current wounds, progress toward its capacity, and a I/II/III severity label.
 - Shows global hindrance as a separate −N badge.
 - Keeps the old external circle tracks as an optional legacy display mode.
+
+
+## v0.5.0
+- Converts NPC attack damage into wounds: 1–4 Minor, 5–8 Moderate, 9+ Major.
+- Adds the conversion and an Apply Wound button to NPC attack chat cards.
+- The chat button applies the wound to targeted PCs, controlled PCs, or the user's assigned character.
+- Adds direct Minor, Moderate, and Major wound buttons to the Token HUD for PCs.
