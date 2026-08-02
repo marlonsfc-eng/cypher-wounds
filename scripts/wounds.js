@@ -100,6 +100,7 @@ async function saveData(actor, data) {
   await syncEffect(actor, clean);
   if (isDead(clean) && game.settings.get(MODULE_ID, "markDefeated")) await markTokensDefeated(actor);
   refreshActorTokens(actor);
+  await refreshUniversalApplicator();
   return clean;
 }
 
@@ -402,27 +403,11 @@ function drawLegacyTracks(token, data, container) {
 }
 
 async function refreshTokenWounds(token) {
-  if (!token?.actor || !canvas?.ready) return;
-  const enabled = game.settings.get(MODULE_ID, "tokenCircles");
-  const visibility = game.settings.get(MODULE_ID, "tokenCircleVisibility");
-  const displayMode = game.settings.get(MODULE_ID, "tokenWoundDisplay");
-  const allowed = visibility === "all" || game.user.isGM || token.actor.isOwner;
-  const old = token.getChildByName?.("cypher2WoundCircles") ?? token.children?.find(child => child.name === "cypher2WoundCircles");
-  if (old) old.destroy({ children: true });
-  if (!enabled || !allowed || visibility === "none") return;
-
-  const data = await getData(token.actor);
-  const container = new PIXI.Container();
-  container.name = "cypher2WoundCircles";
-  container.eventMode = "none";
-  container.interactiveChildren = false;
-  container.zIndex = 9999;
-  container.sortableChildren = true;
-
-  if (displayMode === "tracks") drawLegacyTracks(token, data, container);
-  else drawCompactMeters(token, data, container);
-
-  token.addChild(container);
+  if (!token) return;
+  const old =
+    token.getChildByName?.("cypher2WoundCircles") ??
+    token.children?.find(child => child.name === "cypher2WoundCircles");
+  if (old) old.destroy({children: true});
 }
 function refreshActorTokens(actor) {
   for (const token of actor?.getActiveTokens?.(true, true) ?? []) refreshTokenWounds(token).catch(console.error);
@@ -649,15 +634,23 @@ async function refreshUniversalApplicator() {
     const data = await getData(actor);
     const actorRow = $(`
       <div class="c2t-applicator-actor" data-actor-id="${actor.id}">
-        <div class="c2t-applicator-actor-name">${actor.name}</div>
-        <div class="c2t-applicator-tracks"></div>
+        <div class="c2t-applicator-actor-top">
+          <div class="c2t-applicator-actor-name">${actor.name}</div>
+          <button type="button"
+                  class="c2t-open-wound-control"
+                  data-actor-id="${actor.id}"
+                  title="Abrir controle completo de wounds">
+            <i class="fa-solid fa-sliders"></i>
+          </button>
+        </div>
+        <div class="c2t-applicator-summary"></div>
         <div class="c2t-applicator-hinder">
-          Hinder global: <strong>${hindrance(data)}</strong>
+          Hinder <strong>${hindrance(data)}</strong>
         </div>
       </div>
     `);
 
-    const tracks = actorRow.find(".c2t-applicator-tracks");
+    const summary = actorRow.find(".c2t-applicator-summary");
     const config = [
       ["minor", "I", "Minor"],
       ["moderate", "II", "Moderate"],
@@ -667,27 +660,24 @@ async function refreshUniversalApplicator() {
     for (const [severity, tier, label] of config) {
       const current = Number(data.current[severity] ?? 0);
       const capacity = Number(data.capacity[severity] ?? 0);
-      const track = $(`
-        <div class="c2t-applicator-track ${severity}">
-          <div class="c2t-applicator-track-head">
-            <span class="tier">${tier}</span>
-            <span class="label">${label}</span>
-            <strong>${current}/${capacity}</strong>
-          </div>
-          <div class="c2t-applicator-track-dots" aria-label="${label}: ${current} de ${capacity}"></div>
+      summary.append(`
+        <div class="c2t-applicator-value ${severity}" title="${label}">
+          <span class="c2t-applicator-single-dot"></span>
+          <span class="tier">${tier}</span>
+          <strong>${current}/${capacity}</strong>
         </div>
       `);
-
-      const dots = track.find(".c2t-applicator-track-dots");
-      const maxVisible = Math.max(0, capacity);
-      for (let i = 0; i < maxVisible; i++) {
-        dots.append(`<span class="c2t-applicator-dot ${i < current ? "filled" : ""}"></span>`);
-      }
-      tracks.append(track);
     }
 
     status.append(actorRow);
   }
+
+  panel.find(".c2t-open-wound-control").off("click.c2tOpenWounds").on("click.c2tOpenWounds", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const actor = game.actors.get(event.currentTarget.dataset.actorId);
+    if (actor) openTracker(actor);
+  });
 }
 
 async function applyToApplicatorTargets(action, severity=null) {
@@ -721,33 +711,20 @@ async function applyToApplicatorTargets(action, severity=null) {
     panel.css({width: "", height: ""});
   });
 
-  const resizeHandle = panel.find(".c2t-applicator-resize");
-  resizeHandle.on("pointerdown", event => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const rect = panel[0].getBoundingClientRect();
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startWidth = rect.width;
-    const startHeight = rect.height;
-
-    const move = moveEvent => {
-      const width = Math.max(230, Math.min(window.innerWidth - rect.left, startWidth + moveEvent.clientX - startX));
-      const height = Math.max(160, Math.min(window.innerHeight - rect.top, startHeight + moveEvent.clientY - startY));
-      panel.css({width: `${width}px`, height: `${height}px`});
-    };
-
-    const up = () => {
-      $(window).off("pointermove.c2tResize", move);
-      $(window).off("pointerup.c2tResize", up);
-      const finalRect = panel[0].getBoundingClientRect();
-      saveApplicatorSize(finalRect.width, finalRect.height);
-    };
-
-    $(window).on("pointermove.c2tResize", move);
-    $(window).on("pointerup.c2tResize", up);
-  });
+  if (globalThis.ResizeObserver) {
+    let resizeTimer = null;
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (!entry || panel.hasClass("collapsed")) return;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const rect = panel[0].getBoundingClientRect();
+        saveApplicatorSize(rect.width, rect.height);
+      }, 150);
+    });
+    observer.observe(panel[0]);
+    panel.data("c2tResizeObserver", observer);
+  }
 
   refreshUniversalApplicator();
 }
@@ -787,7 +764,6 @@ function makeUniversalWoundApplicator() {
         </div>
         <div class="c2t-applicator-hint">Shift + clique remove um wound do tipo escolhido.</div>
       </div>
-      <div class="c2t-applicator-resize" title="Redimensionar"></div>
     </section>
   `);
 
@@ -866,8 +842,9 @@ Hooks.on("refreshToken", token => refreshTokenWounds(token).catch(console.error)
 Hooks.on("drawToken", token => refreshTokenWounds(token).catch(console.error));
 Hooks.on("updateActor", actor => {
   refreshActorTokens(actor);
+  refreshUniversalApplicator();
   for (const app of Object.values(actor.apps ?? {})) app.render(false);
 });
-Hooks.on("createItem", item => { if (item.parent?.documentName === "Actor") refreshActorTokens(item.parent); });
-Hooks.on("deleteItem", item => { if (item.parent?.documentName === "Actor") refreshActorTokens(item.parent); });
-Hooks.on("updateItem", item => { if (item.parent?.documentName === "Actor") refreshActorTokens(item.parent); });
+Hooks.on("createItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
+Hooks.on("deleteItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
+Hooks.on("updateItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });

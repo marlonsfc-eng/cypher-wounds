@@ -228,3 +228,11 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Shows current/capacity, colored wound circles, and global hindrance for each selected or targeted PC.
 - Makes the panel resizable with a drag handle and saves its size per browser.
 - Adds a reset-size button while retaining drag, collapse, target priority, apply, heal, and Shift-click removal.
+
+
+## v0.7.1
+- Refreshes the universal wound panel immediately after wound, Actor, or Item changes.
+- Replaces capacity-sized dot rows with one severity marker and current/capacity values.
+- Permanently removes visual wound overlays from tokens and cleans up old overlays.
+- Adds a button beside each character name to open the full wound control.
+- Uses native CSS resizing with ResizeObserver persistence for Foundry v13.

@@ -441,3 +441,123 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* v0.7.1 — compact, live, resizable universal wound panel */
+.c2t-wound-applicator {
+  width: 245px;
+  min-width: 220px;
+  max-width: min(460px, calc(100vw - 12px));
+  height: 195px;
+  min-height: 145px;
+  max-height: calc(100vh - 12px);
+  resize: both;
+  overflow: hidden;
+}
+
+.c2t-applicator-body {
+  overflow: auto;
+}
+
+.c2t-applicator-status {
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.c2t-applicator-actor {
+  padding: 6px;
+}
+
+.c2t-applicator-actor-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+
+.c2t-applicator-actor-name {
+  min-width: 0;
+  margin: 0;
+  font-size: 11px;
+}
+
+.c2t-open-wound-control {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 22px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  color: #ddd;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 4px;
+}
+
+.c2t-open-wound-control:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.16);
+}
+
+.c2t-applicator-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(48px, 1fr));
+  gap: 5px;
+}
+
+.c2t-applicator-value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 3px;
+  font-size: 10px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+}
+
+.c2t-applicator-value .tier {
+  font-size: 8px;
+  font-weight: 900;
+  opacity: 0.78;
+}
+
+.c2t-applicator-single-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 4px currentColor;
+}
+
+.c2t-applicator-value.minor { color: #59d9e8; }
+.c2t-applicator-value.moderate { color: #ffb13b; }
+.c2t-applicator-value.major { color: #ff537d; }
+
+.c2t-applicator-hinder {
+  margin-top: 5px;
+  padding-top: 4px;
+  font-size: 9px;
+}
+
+.c2t-applicator-actions button {
+  height: 27px;
+}
+
+.c2t-applicator-hint {
+  margin-top: 4px;
+  font-size: 8px;
+}
+
+.c2t-applicator-resize {
+  display: none !important;
+}
+
+.c2t-wound-applicator.collapsed {
+  resize: none;
+  overflow: hidden;
+}
