@@ -271,29 +271,123 @@ function drawCircle(graphics, x, y, radius, color, filled) {
   }
 }
 
-async function refreshTokenWounds(token) {
-  if (!token?.actor || !canvas?.ready) return;
-  const enabled = game.settings.get(MODULE_ID, "tokenCircles");
-  const visibility = game.settings.get(MODULE_ID, "tokenCircleVisibility");
-  const allowed = visibility === "all" || game.user.isGM || token.actor.isOwner;
-  const old = token.getChildByName?.("cypher2WoundCircles") ?? token.children?.find(c => c.name === "cypher2WoundCircles");
-  if (old) old.destroy({ children: true });
-  if (!enabled || !allowed || visibility === "none") return;
+function drawRoundedRectCompat(graphics, x, y, width, height, radius, fill, alpha=1) {
+  if (typeof graphics.roundRect === "function" && typeof graphics.fill === "function") {
+    graphics.roundRect(x, y, width, height, radius).fill({color: fill, alpha});
+  } else {
+    graphics.beginFill(fill, alpha);
+    graphics.drawRoundedRect(x, y, width, height, radius);
+    graphics.endFill();
+  }
+}
 
-  const data = await getData(token.actor);
-  const container = new PIXI.Container();
-  container.name = "cypher2WoundCircles";
-  container.eventMode = "none";
-  container.zIndex = 9999;
+function drawProgressRing(graphics, radius, color, ratio) {
+  const safeRatio = clamp(Number(ratio) || 0, 0, 1);
+  if (typeof graphics.circle === "function" && typeof graphics.stroke === "function") {
+    graphics.circle(0, 0, radius).stroke({color: 0x111111, width: 3, alpha: 0.72});
+    if (safeRatio > 0) {
+      graphics.moveTo(0, -radius);
+      graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * safeRatio);
+      graphics.stroke({color, width: 3, alpha: 1});
+    }
+  } else {
+    graphics.lineStyle(3, 0x111111, 0.72);
+    graphics.drawCircle(0, 0, radius);
+    if (safeRatio > 0) {
+      graphics.lineStyle(3, color, 1);
+      graphics.arc(0, 0, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * safeRatio);
+    }
+  }
+}
 
+function makeTokenText(value, fontSize, fill=0xffffff, weight="700") {
+  const style = new PIXI.TextStyle({
+    fontFamily: "Arial, sans-serif",
+    fontSize,
+    fontWeight: weight,
+    fill,
+    align: "center",
+    stroke: 0x111111,
+    strokeThickness: Math.max(1, Math.round(fontSize / 8))
+  });
+  const label = new PIXI.Text(String(value), style);
+  label.anchor?.set?.(0.5);
+  return label;
+}
+
+function drawCompactMeters(token, data, container) {
+  const colors = {
+    minor: 0x35b7c8,       // cyan: superficial strain
+    moderate: 0xf0a12b,    // amber: serious injury
+    major: 0xd63b5c        // crimson/magenta: critical injury
+  };
+  const labels = { minor: "I", moderate: "II", major: "III" };
+
+  const panelWidth = Math.max(54, Math.min(token.w - 6, 112));
+  const panelHeight = Math.max(22, Math.min(30, token.h * 0.22));
+  const panelX = (token.w - panelWidth) / 2;
+  const panelY = Math.max(3, token.h - panelHeight - 4);
+
+  const background = new PIXI.Graphics();
+  drawRoundedRectCompat(background, panelX, panelY, panelWidth, panelHeight, 7, 0x0b0d10, 0.82);
+  container.addChild(background);
+
+  const spacing = panelWidth / 3;
+  const radius = Math.max(6, Math.min(10, panelHeight * 0.31));
+  const numberSize = Math.max(7, Math.min(11, radius * 1.05));
+  const tierSize = Math.max(5, Math.min(8, radius * 0.72));
+
+  SEVERITIES.forEach((severity, index) => {
+    const centerX = panelX + spacing * (index + 0.5);
+    const centerY = panelY + panelHeight * 0.53;
+    const current = Number(data.current[severity] ?? 0);
+    const capacity = Math.max(1, Number(data.capacity[severity] ?? 1));
+    const ratio = current / capacity;
+
+    const ring = new PIXI.Graphics();
+    drawProgressRing(ring, radius, colors[severity], ratio);
+    ring.position.set(centerX, centerY);
+    container.addChild(ring);
+
+    const count = makeTokenText(current, numberSize);
+    count.position.set(centerX, centerY);
+    container.addChild(count);
+
+    const tier = makeTokenText(labels[severity], tierSize, colors[severity], "800");
+    tier.position.set(centerX, panelY + 4);
+    container.addChild(tier);
+  });
+
+  const steps = hindrance(data);
+  if (steps > 0) {
+    const badge = new PIXI.Graphics();
+    const badgeRadius = Math.max(6, Math.min(9, panelHeight * 0.28));
+    if (typeof badge.circle === "function" && typeof badge.fill === "function") {
+      badge.circle(0, 0, badgeRadius).fill({color: 0x15171b, alpha: 0.96}).stroke({color: 0xffffff, width: 1.5, alpha: 0.92});
+    } else {
+      badge.lineStyle(1.5, 0xffffff, 0.92);
+      badge.beginFill(0x15171b, 0.96);
+      badge.drawCircle(0, 0, badgeRadius);
+      badge.endFill();
+    }
+    badge.position.set(panelX + panelWidth - 2, panelY + 2);
+    container.addChild(badge);
+
+    const hinder = makeTokenText(`−${steps}`, Math.max(6, badgeRadius * 0.9));
+    hinder.position.set(badge.position.x, badge.position.y);
+    container.addChild(hinder);
+  }
+}
+
+function drawLegacyTracks(token, data, container) {
   const radius = Math.max(3, Math.min(6, token.w / 18));
   const gap = radius * 2.6;
   const groupGap = radius * 1.5;
-  const counts = SEVERITIES.map(s => data.capacity[s]);
+  const counts = SEVERITIES.map(severity => data.capacity[severity]);
   const totalWidth = counts.reduce((sum, count) => sum + count * gap, 0) + groupGap * 2;
   let x = (token.w - totalWidth) / 2 + radius;
   const y = token.h + radius + 4;
-  const colors = { minor: 0xb68a2c, moderate: 0xcf6b22, major: 0xa51d2d };
+  const colors = { minor: 0x35b7c8, moderate: 0xf0a12b, major: 0xd63b5c };
 
   for (const severity of SEVERITIES) {
     for (let i = 0; i < data.capacity[severity]; i++) {
@@ -305,9 +399,31 @@ async function refreshTokenWounds(token) {
     }
     x += groupGap;
   }
-  token.addChild(container);
 }
 
+async function refreshTokenWounds(token) {
+  if (!token?.actor || !canvas?.ready) return;
+  const enabled = game.settings.get(MODULE_ID, "tokenCircles");
+  const visibility = game.settings.get(MODULE_ID, "tokenCircleVisibility");
+  const displayMode = game.settings.get(MODULE_ID, "tokenWoundDisplay");
+  const allowed = visibility === "all" || game.user.isGM || token.actor.isOwner;
+  const old = token.getChildByName?.("cypher2WoundCircles") ?? token.children?.find(child => child.name === "cypher2WoundCircles");
+  if (old) old.destroy({ children: true });
+  if (!enabled || !allowed || visibility === "none") return;
+
+  const data = await getData(token.actor);
+  const container = new PIXI.Container();
+  container.name = "cypher2WoundCircles";
+  container.eventMode = "none";
+  container.interactiveChildren = false;
+  container.zIndex = 9999;
+  container.sortableChildren = true;
+
+  if (displayMode === "tracks") drawLegacyTracks(token, data, container);
+  else drawCompactMeters(token, data, container);
+
+  token.addChild(container);
+}
 function refreshActorTokens(actor) {
   for (const token of actor?.getActiveTokens?.(true, true) ?? []) refreshTokenWounds(token).catch(console.error);
 }
@@ -352,6 +468,7 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "playersEdit", { name: "CW.Settings.Players.Name", hint: "CW.Settings.Players.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "tokenHUD", { name: "CW.Settings.TokenHUD.Name", hint: "CW.Settings.TokenHUD.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "tokenCircles", { name: "CW.Settings.TokenCircles.Name", hint: "CW.Settings.TokenCircles.Hint", scope: "world", config: true, type: Boolean, default: true });
+  game.settings.register(MODULE_ID, "tokenWoundDisplay", { name: "Wounds: visualização no token", hint: "Compacta mantém os indicadores dentro do token; trilhas preserva os círculos externos antigos.", scope: "world", config: true, type: String, choices: { compact: "Medidores compactos", tracks: "Trilhas de círculos (legado)" }, default: "compact" });
   game.settings.register(MODULE_ID, "tokenCircleVisibility", { name: "CW.Settings.TokenVisibility.Name", hint: "CW.Settings.TokenVisibility.Hint", scope: "world", config: true, type: String, choices: { all: "CW.Settings.TokenVisibility.All", owners: "CW.Settings.TokenVisibility.Owners", none: "CW.Settings.TokenVisibility.None" }, default: "owners" });
   game.settings.register(MODULE_ID, "autoRollHindrance", { name: "CW.Settings.AutoHinder.Name", hint: "CW.Settings.AutoHinder.Hint", scope: "world", config: true, type: Boolean, default: true });
 });

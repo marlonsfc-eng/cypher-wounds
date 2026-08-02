@@ -186,3 +186,11 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Stores ability costs as strings, as required by the v13 Cypher System itemRollMacro (`0`, `2`, `3+`, etc.).
 - Migrates existing imported abilities automatically when the world starts.
 - Leaves the native Roll Item button and its event listener untouched.
+
+
+## v0.4.5
+- Replaces the wide token wound tracks with three compact circular meters inside the token.
+- Uses cyan, amber, and crimson for minor, moderate, and major wounds.
+- Each meter shows current wounds, progress toward its capacity, and a I/II/III severity label.
+- Shows global hindrance as a separate −N badge.
+- Keeps the old external circle tracks as an optional legacy display mode.
