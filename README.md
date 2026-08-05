@@ -236,3 +236,15 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Permanently removes visual wound overlays from tokens and cleans up old overlays.
 - Adds a button beside each character name to open the full wound control.
 - Uses native CSS resizing with ResizeObserver persistence for Foundry v13.
+
+
+## v0.7.2
+- Hides the legacy Hale/Hurt/Impaired/Debilitated damage-track row from PC sheets.
+- Keeps the recovery roll and recovery checkboxes intact.
+- Renames the section header from Damage & Recovery to Recovery.
+
+
+## v0.8.0
+- Adds native Skill compendium import support.
+- Skill JSON entries are imported as Cypher System `skill` Items with Trained rating and the native Roll Item controls.
+- Adds support for campaign-specific skill libraries such as the Numenera skill list.

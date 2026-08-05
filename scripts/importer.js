@@ -63,7 +63,39 @@ function resolveOrigin(entry, category, context) {
 function itemData(entry, category="abilities", context=null) {
   const base = cleanObject(entry.document ?? entry.data);
   const origin = resolveOrigin(entry, category, context ?? {types:new Map(), foci:new Map()});
-  const system = foundry.utils.mergeObject({
+  const isSkill = category === "skills";
+  const systemDefaults = isSkill ? {
+    version: 2,
+    description: htmlFromEntry(entry),
+    archived: false,
+    favorite: false,
+    basic: { rating: String(entry.rating ?? "Trained") },
+    settings: {
+      general: {
+        sorting: String(entry.sorting ?? "Skill"),
+        initiative: Boolean(entry.initiative ?? false),
+        unmaskedForm: "Mask"
+      },
+      rollButton: {
+        pool: String(entry.rollPool ?? entry.pool ?? "Pool"),
+        skill: String(entry.rating ?? "Trained"),
+        assets: Number(entry.assets ?? 0) || 0,
+        effort1: 0,
+        effort2: 0,
+        effort3: 0,
+        freeEffort: Number(entry.freeEffort ?? 0) || 0,
+        stepModifier: String(entry.stepModifier ?? "eased"),
+        additionalSteps: Number(entry.additionalSteps ?? 0) || 0,
+        additionalCost: 0,
+        damage: 0,
+        damagePerLOE: 3,
+        teen: "",
+        bonus: Number(entry.bonus ?? 0) || 0,
+        macroUuid: "",
+        macroExecuteAsGM: false
+      }
+    }
+  } : {
     version: 2, description: htmlFromEntry(entry), archived: false, favorite: false,
     basic: { cost: String(entry.cost ?? "0"), pool: String(entry.pool ?? "Pool") },
     settings: {
@@ -78,10 +110,11 @@ function itemData(entry, category="abilities", context=null) {
         macroUuid: "", macroExecuteAsGM: false
       }
     }
-  }, cleanObject(base.system), {inplace:false, overwrite:true});
+  };
+  const system = foundry.utils.mergeObject(systemDefaults, cleanObject(base.system), {inplace:false, overwrite:true});
 
   return foundry.utils.mergeObject({
-    name: String(entry.name ?? "Unnamed Entry"), type: String(base.type ?? entry.type ?? "ability"),
+    name: String(entry.name ?? "Unnamed Entry"), type: String(base.type ?? entry.type ?? (category === "skills" ? "skill" : "ability")),
     img: String(base.img ?? entry.img ?? "icons/svg/book.svg"), system,
     flags: { [C2T_ID]: {
       sourceId: getSourceId(entry, category), category, tier: entry.tier ?? null, source: entry.source ?? null,
@@ -190,7 +223,7 @@ async function upsertDocuments(pack, entries, category, context, mode="update") 
 
 function validatePayload(payload){
   if(!payload||typeof payload!=="object"||Array.isArray(payload)) throw new Error(c2tLocalize("C2T.Importer.InvalidRoot"));
-  const supported=["types","foci","descriptors","abilities"];
+  const supported=["types","foci","descriptors","skills","abilities"];
   if(!supported.some(key=>Array.isArray(payload[key]))) throw new Error(c2tLocalize("C2T.Importer.NoCollections"));
   for(const key of supported){if(payload[key]!==undefined&&!Array.isArray(payload[key])) throw new Error(`${key}: ${c2tLocalize("C2T.Importer.MustBeArray")}`);for(const entry of payload[key]??[]){if(!entry||typeof entry!=="object"||!entry.name) throw new Error(`${key}: ${c2tLocalize("C2T.Importer.MissingName")}`);}}
 }
@@ -199,9 +232,9 @@ export async function importCypherContent(payload,options={}){
   if(!game.user.isGM) throw new Error(c2tLocalize("C2T.GMOnly")); validatePayload(payload);
   const mode=options.mode==="replace"?"replace":"update"; const prefix=slugify(options.prefix??payload.meta?.packPrefix??"cypher-2");
   const labels=payload.meta?.labels??{}; const summary={}; const context=buildImportContext(payload);
-  for(const category of ["abilities","types","foci","descriptors"]){
+  for(const category of ["abilities","types","foci","descriptors","skills"]){
     if(!Array.isArray(payload[category])) continue;
-    const defaultLabel=category==="abilities"?"Cypher 2 — Abilities":category==="types"?"Cypher 2 — Types":category==="foci"?"Cypher 2 — Foci":"Cypher 2 — Descriptors";
+    const defaultLabel=category==="abilities"?"Cypher 2 — Abilities":category==="types"?"Cypher 2 — Types":category==="foci"?"Cypher 2 — Foci":category==="descriptors"?"Cypher 2 — Descriptors":"Cypher 2 — Skills";
     const pack=await ensureWorldPack({name:`${prefix}-${category}`,label:labels[category]??defaultLabel,type:"Item"});
     summary[category]=await upsertDocuments(pack,payload[category],category,context,mode);
   }

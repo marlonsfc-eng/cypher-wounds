@@ -561,3 +561,17 @@
   resize: none;
   overflow: hidden;
 }
+
+
+/* v0.7.2 — Cypher 2 uses wounds instead of the legacy damage track */
+.cyphersystem.sheet.actor.pc .c2t-hidden-damage-track {
+  display: none !important;
+}
+
+.cyphersystem.sheet.actor.pc .c2t-recovery-only > li.item-header {
+  min-height: 28px;
+}
+
+.cyphersystem.sheet.actor.pc .c2t-recovery-only > li.item:not(.item-header):last-child {
+  border-top: 0;
+}

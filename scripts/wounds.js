@@ -484,6 +484,27 @@ Hooks.on("renderRollEngineDialogSheet", (app, html) => {
 });
 Hooks.on("renderActorSheet", injectSheet);
 Hooks.on("getActorSheetHeaderButtons", (app, buttons) => { if (app.actor?.type !== "npc") buttons.unshift({ label: i18n("CW.Title"), class: "cypher-wounds-open", icon: "fas fa-heart-crack", onclick: () => openTracker(app.actor) }); });
+
+function simplifyDamageRecoverySection(app, html) {
+  const actor = app?.actor;
+  if (!actor || actor.type !== "pc") return;
+
+  const root = html?.find ? html : $(html);
+  const damageSelect = root.find("select.damage-track-select");
+  if (!damageSelect.length) return;
+
+  const damageRow = damageSelect.closest("li.item");
+  damageRow.addClass("c2t-hidden-damage-track").hide();
+
+  const list = damageRow.closest("ol.items-list");
+  const header = list.find("li.item-header .item-name").first();
+  if (header.length) header.text("Recovery");
+
+  list.addClass("c2t-recovery-only");
+}
+
+Hooks.on("renderActorSheet", (app, html) => simplifyDamageRecoverySection(app, html));
+
 Hooks.on("renderTokenHUD", async (hud, html, data) => {
   if (!game.settings.get(MODULE_ID, "tokenHUD")) return;
 
