@@ -304,6 +304,12 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Shift + clique permite escolher os participantes antes do sorteio.
 - Publica o resultado no chat geral para todos os jogadores.
 
+## v0.14.0
+- Compacta o painel Wounds & Resources e posiciona XP, Pools e hindrance ao lado do nome do ator.
+- Transforma os três indicadores de wounds em botões: clique adiciona e Shift + clique remove a severidade correspondente.
+- Remove a linha redundante de alvo e a barra inferior de aplicação e cura.
+- Ajusta automaticamente a altura do painel e mantém apenas o redimensionamento horizontal.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

@@ -274,6 +274,7 @@
   gap: 2px;
 }
 
+.c2t-random-pc,
 .c2t-applicator-reset-size,
 .c2t-applicator-collapse {
   width: 24px;
@@ -1338,6 +1339,90 @@
 
 .c2t-random-pc-chat h3 {
   margin: 0 0 5px;
+}
+
+/* v0.14.0 - compact interactive wound and resource panel */
+.c2t-wound-applicator {
+  width: 340px;
+  min-width: 300px;
+  height: auto;
+  min-height: 0;
+  resize: horizontal;
+}
+
+.c2t-applicator-body {
+  padding: 5px;
+  max-height: calc(100vh - 52px);
+}
+
+.c2t-applicator-status {
+  gap: 4px;
+  margin: 0;
+}
+
+.c2t-applicator-actor {
+  padding: 5px;
+}
+
+.c2t-applicator-actor-top {
+  justify-content: flex-start;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.c2t-applicator-actor-name {
+  flex: 1 1 auto;
+  min-width: 60px;
+  font-size: 11px;
+}
+
+.c2t-applicator-actor-top .c2t-applicator-resources {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.c2t-applicator-actor-top .c2t-resource-value {
+  gap: 2px;
+  font-size: 9px;
+}
+
+.c2t-applicator-actor-top .c2t-resource-value strong {
+  font-size: 10px;
+}
+
+.c2t-applicator-actor-top .c2t-resource-value.xp {
+  padding-right: 5px;
+}
+
+.c2t-resource-value.hindrance > span {
+  color: #c6c6c6;
+}
+
+.c2t-applicator-summary {
+  gap: 4px;
+}
+
+.c2t-applicator-value {
+  min-height: 25px;
+  height: 25px;
+  margin: 0;
+  padding: 3px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.c2t-applicator-value:hover {
+  border-color: currentColor;
+  background: rgba(255, 255, 255, .12);
+  box-shadow: 0 0 5px color-mix(in srgb, currentColor 55%, transparent);
 }
 
 

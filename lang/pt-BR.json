@@ -100,6 +100,7 @@
   "C2T.Resources.SelectTarget": "Selecione ou marque um personagem, NPC ou criatura como alvo.",
   "C2T.Resources.SelectPcForWounds": "Selecione um personagem de jogador para alterar wounds.",
   "C2T.Resources.OpenSheet": "Abrir ficha",
+  "C2T.Resources.WoundButtonHint": "{severity}: clique adiciona; Shift + clique remove",
   "C2T.Resources.AuditTitle": "Alteração de recursos",
   "C2T.Resources.UnknownUser": "Usuário desconhecido",
   "C2T.Resources.Settings.Panel.Name": "Mostrar recursos no painel de ferimentos",

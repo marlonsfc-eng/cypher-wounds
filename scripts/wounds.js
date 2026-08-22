@@ -6,7 +6,7 @@ const MODEL_VERSION = 2;
 const DEFAULTS = Object.freeze({ minor: 3, moderate: 3, major: 3 });
 const SEVERITIES = ["minor", "moderate", "major"];
 const PANEL_ACTOR_TYPES = new Set(["pc", "npc", "companion", "community", "vehicle"]);
-const APPLICATOR_SIZE_KEY = `${MODULE_ID}.applicatorSize.v2`;
+const APPLICATOR_SIZE_KEY = `${MODULE_ID}.applicatorSize.v3`;
 
 const i18n = (key, data = {}) => game.i18n.format(key, data);
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -973,13 +973,6 @@ function resolveApplicatorTargets() {
   return owned.length === 1 ? owned : [];
 }
 
-function applicatorTargetLabel(targets) {
-  if (!targets.length) return game.i18n.localize("C2T.Resources.NoTarget");
-  if (targets.length === 1) return targets[0].name;
-  if (targets.length <= 3) return targets.map(actor => actor.name).join(", ");
-  return `${targets.length} personagens`;
-}
-
 function getApplicatorPosition() {
   try {
     return JSON.parse(localStorage.getItem(`${MODULE_ID}.applicatorPosition`) || "null");
@@ -1000,13 +993,14 @@ function getApplicatorSize() {
   }
 }
 
-function saveApplicatorSize(width, height) {
-  localStorage.setItem(APPLICATOR_SIZE_KEY, JSON.stringify({width, height}));
+function saveApplicatorSize(width) {
+  localStorage.setItem(APPLICATOR_SIZE_KEY, JSON.stringify({width}));
 }
 
 function clearApplicatorSize() {
   localStorage.removeItem(APPLICATOR_SIZE_KEY);
   localStorage.removeItem(`${MODULE_ID}.applicatorSize`);
+  localStorage.removeItem(`${MODULE_ID}.applicatorSize.v2`);
 }
 
 async function refreshUniversalApplicator() {
@@ -1014,11 +1008,7 @@ async function refreshUniversalApplicator() {
   if (!panel.length) return;
 
   const targets = resolveApplicatorTargets();
-  const woundTargets = targets.filter(actor => actor.type === "pc");
-  panel.find(".c2t-applicator-target").text(applicatorTargetLabel(targets));
   panel.removeClass("disabled").toggleClass("c2t-no-target", !targets.length);
-  panel.find("button[data-action]").prop("disabled", !woundTargets.length);
-  panel.find(".c2t-applicator-wound-controls").toggle(Boolean(woundTargets.length));
 
   const status = panel.find(".c2t-applicator-status");
   status.empty();
@@ -1038,6 +1028,7 @@ async function refreshUniversalApplicator() {
       <div class="c2t-applicator-actor" data-actor-id="${actor.id}">
         <div class="c2t-applicator-actor-top">
           <div class="c2t-applicator-actor-name">${actor.name}</div>
+          <div class="c2t-applicator-resources"></div>
           <button type="button"
                   class="c2t-open-actor-control"
                   data-actor-id="${actor.id}"
@@ -1046,8 +1037,6 @@ async function refreshUniversalApplicator() {
           </button>
         </div>
         <div class="c2t-applicator-summary"></div>
-        <div class="c2t-applicator-resources"></div>
-        ${usesWounds ? `<div class="c2t-applicator-hinder">Hinder <strong>${hindrance(data)}</strong></div>` : ""}
       </div>
     `);
 
@@ -1062,11 +1051,11 @@ async function refreshUniversalApplicator() {
       const current = Number(data.current[severity] ?? 0);
       const capacity = Number(data.capacity[severity] ?? 0);
       summary.append(`
-        <div class="c2t-applicator-value ${severity}" title="${label}">
+        <button type="button" class="c2t-applicator-value ${severity}" data-actor-id="${actor.id}" data-severity="${severity}" title="${game.i18n.format("C2T.Resources.WoundButtonHint", {severity: label})}">
           <span class="c2t-applicator-single-dot"></span>
           <span class="tier">${tier}</span>
           <strong>${current}/${capacity}</strong>
-        </div>
+        </button>
       `);
     }
 
@@ -1080,7 +1069,11 @@ async function refreshUniversalApplicator() {
           </span>
         `);
       }
-    } else {
+    }
+    if (usesWounds) {
+      resourceRow.append(`<span class="c2t-resource-value hindrance" title="${game.i18n.localize("CW.Hindrance")}"><span>H</span><strong>${hindrance(data)}</strong></span>`);
+    }
+    if (!resourceRow.children().length) {
       resourceRow.remove();
     }
 
@@ -1095,33 +1088,23 @@ async function refreshUniversalApplicator() {
     if (actor.type === "pc") openTracker(actor);
     else actor.sheet?.render(true);
   });
-}
 
-async function applyToApplicatorTargets(action, severity=null) {
-  const targets = resolveApplicatorTargets().filter(actor => actor.type === "pc");
-  if (!targets.length) {
-    return ui.notifications.warn(game.i18n.localize("C2T.Resources.SelectPcForWounds"));
-  }
-
-  for (const actor of targets) {
-    if (action === "heal") await healWound(actor);
-    else if (action === "add" && SEVERITIES.includes(severity)) await takeWound(actor, severity);
-    else if (action === "remove" && SEVERITIES.includes(severity)) {
+  panel.find(".c2t-applicator-value[data-severity]").off("click.c2tWoundValue").on("click.c2tWoundValue", async event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const actor = game.actors.get(event.currentTarget.dataset.actorId);
+    const severity = event.currentTarget.dataset.severity;
+    if (!actor || actor.type !== "pc" || !SEVERITIES.includes(severity)) return;
+    if (event.shiftKey) {
       const data = await getData(actor);
       data.current[severity] = Math.max(0, Number(data.current[severity] ?? 0) - 1);
       await saveData(actor, data);
+      ui.notifications.info(`${universalSeverityLabel(severity)} wound removido de ${actor.name}.`);
+    } else {
+      await takeWound(actor, severity);
     }
-  }
-
-  const verb = action === "heal"
-    ? "Curado 1 wound"
-    : action === "remove"
-      ? `Removido 1 ${universalSeverityLabel(severity)} wound`
-      : `Aplicado 1 ${universalSeverityLabel(severity)} wound`;
-
-  ui.notifications.info(`${verb} em ${applicatorTargetLabel(targets)}.`);
-
-  refreshUniversalApplicator();
+    refreshUniversalApplicator();
+  });
 }
 
 function scenePcTokens() {
@@ -1224,24 +1207,7 @@ function makeUniversalWoundApplicator() {
         </div>
       </header>
       <div class="c2t-applicator-body">
-        <div class="c2t-applicator-target-row">
-          <span class="c2t-applicator-target-label">Alvo:</span>
-          <strong class="c2t-applicator-target">${game.i18n.localize("C2T.Resources.NoTarget")}</strong>
-        </div>
-
         <div class="c2t-applicator-status"></div>
-
-        <div class="c2t-applicator-wound-controls">
-          <div class="c2t-applicator-actions">
-            <button type="button" data-action="add" data-severity="minor" class="minor" title="Aplicar Minor wound">I</button>
-            <button type="button" data-action="add" data-severity="moderate" class="moderate" title="Aplicar Moderate wound">II</button>
-            <button type="button" data-action="add" data-severity="major" class="major" title="Aplicar Major wound">III</button>
-            <button type="button" data-action="heal" class="heal" title="Curar o wound mais grave">
-              <i class="fa-solid fa-kit-medical"></i>
-            </button>
-          </div>
-          <div class="c2t-applicator-hint">Shift + clique remove um wound do tipo escolhido.</div>
-        </div>
       </div>
     </section>
   `);
@@ -1254,21 +1220,9 @@ function makeUniversalWoundApplicator() {
   }
 
   const savedSize = getApplicatorSize();
-  if (savedSize && Number.isFinite(savedSize.width) && Number.isFinite(savedSize.height)) {
-    panel.css({
-      width: `${savedSize.width}px`,
-      height: `${savedSize.height}px`
-    });
+  if (savedSize && Number.isFinite(savedSize.width)) {
+    panel.css({width: `${savedSize.width}px`});
   }
-
-  panel.find("[data-action]").on("click", async event => {
-    event.preventDefault();
-    const button = event.currentTarget;
-    const action = button.dataset.action;
-    const severity = button.dataset.severity ?? null;
-    const effectiveAction = action === "add" && event.shiftKey ? "remove" : action;
-    await applyToApplicatorTargets(effectiveAction, severity);
-  });
 
   panel.find(".c2t-random-pc").on("click", handleRandomPc);
 
@@ -1287,7 +1241,7 @@ function makeUniversalWoundApplicator() {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         const rect = panel[0].getBoundingClientRect();
-        saveApplicatorSize(rect.width, rect.height);
+        saveApplicatorSize(rect.width);
       }, 150);
     });
     observer.observe(panel[0]);
