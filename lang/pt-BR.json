@@ -87,11 +87,25 @@
   "C2T.Resources.Speed": "Velocidade",
   "C2T.Resources.Intellect": "Intelecto",
   "C2T.Resources.Additional": "Reserva adicional",
+  "C2T.Resources.Health": "Vida",
+  "C2T.Resources.Level": "Nível",
+  "C2T.Resources.Damage": "Dano",
+  "C2T.Resources.Armor": "Armadura",
+  "C2T.Resources.Infrastructure": "Infraestrutura",
+  "C2T.Resources.Rank": "Grau",
+  "C2T.Resources.Crew": "Tripulação",
+  "C2T.Resources.Weapons": "Sistemas de armas",
+  "C2T.Resources.PanelTitle": "Wounds e recursos",
+  "C2T.Resources.NoTarget": "Nenhum ator",
+  "C2T.Resources.SelectTarget": "Selecione ou marque um personagem, NPC ou criatura como alvo.",
+  "C2T.Resources.SelectPcForWounds": "Selecione um personagem de jogador para alterar wounds.",
+  "C2T.Resources.OpenSheet": "Abrir ficha",
   "C2T.Resources.AuditTitle": "Alteração de recursos",
   "C2T.Resources.UnknownUser": "Usuário desconhecido",
   "C2T.Resources.Settings.Panel.Name": "Mostrar recursos no painel de ferimentos",
-  "C2T.Resources.Settings.Panel.Hint": "Exibe discretamente XP e os valores atuais/máximos das Reservas no painel universal, sem adicionar controles de edição.",
+  "C2T.Resources.Settings.Panel.Hint": "Exibe XP e Reservas de personagens, além de Vida e atributos essenciais de NPCs e criaturas, sem adicionar controles de edição.",
   "C2T.Resources.Settings.Audit.Name": "Avisar Mestres sobre alterações de recursos",
-  "C2T.Resources.Settings.Audit.Hint": "Cria uma mensagem privada no chat, visível apenas aos Mestres, quando XP ou uma Reserva de um personagem é alterada."
+  "C2T.Resources.Settings.Audit.Hint": "Cria uma mensagem privada no chat, visível apenas aos Mestres, quando um recurso monitorado de um ator é alterado."
 }
+
 

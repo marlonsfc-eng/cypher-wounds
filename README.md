@@ -259,3 +259,14 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Evita mensagens duplicadas quando há mais de um Mestre conectado.
 - Permite desativar separadamente a exibição no painel e os avisos privados nas configurações do módulo.
 
+
+## v0.9.1
+- Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
+- Descarta o tamanho salvo pela versão anterior uma única vez, preservando a posição escolhida.
+- Permite selecionar e inspecionar NPCs, criaturas, companions, communities e vehicles.
+- Mostra Health, Level, Damage e Armor para NPCs e criaturas, respeitando os campos nativos do sistema.
+- Mantém os controles de wounds exclusivos para personagens de jogador.
+- Permite mover, minimizar e restaurar o painel mesmo quando nenhum token está selecionado.
+- Amplia os avisos privados do Mestre para recursos monitorados de NPCs e outros atores compatíveis.
+
+

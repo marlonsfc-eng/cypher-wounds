@@ -87,11 +87,25 @@
   "C2T.Resources.Speed": "Speed",
   "C2T.Resources.Intellect": "Intellect",
   "C2T.Resources.Additional": "Additional Pool",
+  "C2T.Resources.Health": "Health",
+  "C2T.Resources.Level": "Level",
+  "C2T.Resources.Damage": "Damage",
+  "C2T.Resources.Armor": "Armor",
+  "C2T.Resources.Infrastructure": "Infrastructure",
+  "C2T.Resources.Rank": "Rank",
+  "C2T.Resources.Crew": "Crew",
+  "C2T.Resources.Weapons": "Weapon Systems",
+  "C2T.Resources.PanelTitle": "Wounds & Resources",
+  "C2T.Resources.NoTarget": "No actor",
+  "C2T.Resources.SelectTarget": "Select or target a player character, NPC, or creature.",
+  "C2T.Resources.SelectPcForWounds": "Select a player character to alter wounds.",
+  "C2T.Resources.OpenSheet": "Open sheet",
   "C2T.Resources.AuditTitle": "Resource change",
   "C2T.Resources.UnknownUser": "Unknown user",
   "C2T.Resources.Settings.Panel.Name": "Show resources in the wound panel",
-  "C2T.Resources.Settings.Panel.Hint": "Discreetly shows XP and current/maximum Pool values in the universal panel without adding editing controls.",
+  "C2T.Resources.Settings.Panel.Hint": "Shows PC XP and Pools plus Health and essential attributes for NPCs and creatures without adding editing controls.",
   "C2T.Resources.Settings.Audit.Name": "Notify GMs about resource changes",
-  "C2T.Resources.Settings.Audit.Hint": "Creates a private GM-only chat message when a character's XP or Pool is changed."
+  "C2T.Resources.Settings.Audit.Hint": "Creates a private GM-only chat message when a monitored Actor resource changes."
 }
+
 

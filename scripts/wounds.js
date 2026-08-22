@@ -5,6 +5,8 @@ const LEGACY_MODULE_ID = "cypher-wounds";
 const MODEL_VERSION = 2;
 const DEFAULTS = Object.freeze({ minor: 3, moderate: 3, major: 3 });
 const SEVERITIES = ["minor", "moderate", "major"];
+const PANEL_ACTOR_TYPES = new Set(["pc", "npc", "companion", "community", "vehicle"]);
+const APPLICATOR_SIZE_KEY = `${MODULE_ID}.applicatorSize.v2`;
 
 const i18n = (key, data = {}) => game.i18n.format(key, data);
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -585,12 +587,12 @@ function getOwnedPcActors() {
 function resolveApplicatorTargets() {
   const targeted = [...(game.user.targets ?? [])]
     .map(token => token.actor)
-    .filter(actor => actor?.type === "pc" && (game.user.isGM || actor.isOwner));
+    .filter(actor => PANEL_ACTOR_TYPES.has(actor?.type) && (game.user.isGM || actor.isOwner));
   if (targeted.length) return [...new Map(targeted.map(actor => [actor.id, actor])).values()];
 
   const controlled = (canvas?.tokens?.controlled ?? [])
     .map(token => token.actor)
-    .filter(actor => actor?.type === "pc" && (game.user.isGM || actor.isOwner));
+    .filter(actor => PANEL_ACTOR_TYPES.has(actor?.type) && (game.user.isGM || actor.isOwner));
   if (controlled.length) return [...new Map(controlled.map(actor => [actor.id, actor])).values()];
 
   if (game.user.character?.type === "pc" && (game.user.isGM || game.user.character.isOwner)) {
@@ -602,7 +604,7 @@ function resolveApplicatorTargets() {
 }
 
 function applicatorTargetLabel(targets) {
-  if (!targets.length) return "Nenhum personagem";
+  if (!targets.length) return game.i18n.localize("C2T.Resources.NoTarget");
   if (targets.length === 1) return targets[0].name;
   if (targets.length <= 3) return targets.map(actor => actor.name).join(", ");
   return `${targets.length} personagens`;
@@ -622,17 +624,18 @@ function saveApplicatorPosition(left, top) {
 
 function getApplicatorSize() {
   try {
-    return JSON.parse(localStorage.getItem(`${MODULE_ID}.applicatorSize`) || "null");
+    return JSON.parse(localStorage.getItem(APPLICATOR_SIZE_KEY) || "null");
   } catch (_) {
     return null;
   }
 }
 
 function saveApplicatorSize(width, height) {
-  localStorage.setItem(`${MODULE_ID}.applicatorSize`, JSON.stringify({width, height}));
+  localStorage.setItem(APPLICATOR_SIZE_KEY, JSON.stringify({width, height}));
 }
 
 function clearApplicatorSize() {
+  localStorage.removeItem(APPLICATOR_SIZE_KEY);
   localStorage.removeItem(`${MODULE_ID}.applicatorSize`);
 }
 
@@ -641,20 +644,23 @@ async function refreshUniversalApplicator() {
   if (!panel.length) return;
 
   const targets = resolveApplicatorTargets();
+  const woundTargets = targets.filter(actor => actor.type === "pc");
   panel.find(".c2t-applicator-target").text(applicatorTargetLabel(targets));
-  panel.toggleClass("disabled", !targets.length);
-  panel.find("button[data-action]").prop("disabled", !targets.length);
+  panel.removeClass("disabled").toggleClass("c2t-no-target", !targets.length);
+  panel.find("button[data-action]").prop("disabled", !woundTargets.length);
+  panel.find(".c2t-applicator-wound-controls").toggle(Boolean(woundTargets.length));
 
   const status = panel.find(".c2t-applicator-status");
   status.empty();
 
   if (!targets.length) {
-    status.append('<div class="c2t-applicator-empty">Selecione ou marque um personagem como alvo.</div>');
+    status.append(`<div class="c2t-applicator-empty">${game.i18n.localize("C2T.Resources.SelectTarget")}</div>`);
     return;
   }
 
   for (const actor of targets) {
-    const data = await getData(actor);
+    const usesWounds = actor.type === "pc";
+    const data = usesWounds ? await getData(actor) : null;
     const resources = game.settings.get(MODULE_ID, "showResourcesInPanel")
       ? getActorResourceSnapshot(actor)
       : null;
@@ -663,17 +669,15 @@ async function refreshUniversalApplicator() {
         <div class="c2t-applicator-actor-top">
           <div class="c2t-applicator-actor-name">${actor.name}</div>
           <button type="button"
-                  class="c2t-open-wound-control"
+                  class="c2t-open-actor-control"
                   data-actor-id="${actor.id}"
-                  title="Abrir controle completo de wounds">
-            <i class="fa-solid fa-sliders"></i>
+                  title="${game.i18n.localize(usesWounds ? "CW.Open" : "C2T.Resources.OpenSheet")}">
+            <i class="fa-solid ${usesWounds ? "fa-sliders" : "fa-address-card"}"></i>
           </button>
         </div>
         <div class="c2t-applicator-summary"></div>
         <div class="c2t-applicator-resources"></div>
-        <div class="c2t-applicator-hinder">
-          Hinder <strong>${hindrance(data)}</strong>
-        </div>
+        ${usesWounds ? `<div class="c2t-applicator-hinder">Hinder <strong>${hindrance(data)}</strong></div>` : ""}
       </div>
     `);
 
@@ -684,7 +688,7 @@ async function refreshUniversalApplicator() {
       ["major", "III", "Major"]
     ];
 
-    for (const [severity, tier, label] of config) {
+    for (const [severity, tier, label] of usesWounds ? config : []) {
       const current = Number(data.current[severity] ?? 0);
       const capacity = Number(data.capacity[severity] ?? 0);
       summary.append(`
@@ -697,16 +701,12 @@ async function refreshUniversalApplicator() {
     }
 
     const resourceRow = actorRow.find(".c2t-applicator-resources");
-    if (resources) {
-      resourceRow.append(`
-        <span class="c2t-resource-value xp" title="${game.i18n.localize("C2T.Resources.XP")}">
-          <i class="fa-solid fa-star"></i><strong>${resources.xp}</strong>
-        </span>
-      `);
-      for (const pool of Object.values(resources.pools)) {
+    if (resources?.stats?.length) {
+      for (const stat of resources.stats) {
+        const value = stat.max === null ? stat.value : `${stat.value}/${stat.max}`;
         resourceRow.append(`
-          <span class="c2t-resource-value ${pool.key}" title="${pool.label}">
-            <span>${pool.shortLabel}</span><strong>${pool.value}/${pool.max}</strong>
+          <span class="c2t-resource-value ${stat.key}" title="${stat.label}">
+            <span>${stat.shortLabel}</span><strong>${value}</strong>
           </span>
         `);
       }
@@ -717,18 +717,20 @@ async function refreshUniversalApplicator() {
     status.append(actorRow);
   }
 
-  panel.find(".c2t-open-wound-control").off("click.c2tOpenWounds").on("click.c2tOpenWounds", event => {
+  panel.find(".c2t-open-actor-control").off("click.c2tOpenActor").on("click.c2tOpenActor", event => {
     event.preventDefault();
     event.stopPropagation();
     const actor = game.actors.get(event.currentTarget.dataset.actorId);
-    if (actor) openTracker(actor);
+    if (!actor) return;
+    if (actor.type === "pc") openTracker(actor);
+    else actor.sheet?.render(true);
   });
 }
 
 async function applyToApplicatorTargets(action, severity=null) {
-  const targets = resolveApplicatorTargets();
+  const targets = resolveApplicatorTargets().filter(actor => actor.type === "pc");
   if (!targets.length) {
-    return ui.notifications.warn("Selecione um token de personagem ou marque-o como alvo.");
+    return ui.notifications.warn(game.i18n.localize("C2T.Resources.SelectPcForWounds"));
   }
 
   for (const actor of targets) {
@@ -759,7 +761,7 @@ function makeUniversalWoundApplicator() {
   const panel = $(`
     <section id="c2t-universal-wound-applicator" class="c2t-wound-applicator">
       <header class="c2t-applicator-header">
-        <span><i class="fa-solid fa-heart-crack"></i> Wounds</span>
+        <span><i class="fa-solid fa-heart-crack"></i> ${game.i18n.localize("C2T.Resources.PanelTitle")}</span>
         <div class="c2t-applicator-header-actions">
           <button type="button" class="c2t-applicator-reset-size" title="Restaurar tamanho">
             <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
@@ -772,20 +774,22 @@ function makeUniversalWoundApplicator() {
       <div class="c2t-applicator-body">
         <div class="c2t-applicator-target-row">
           <span class="c2t-applicator-target-label">Alvo:</span>
-          <strong class="c2t-applicator-target">Nenhum personagem</strong>
+          <strong class="c2t-applicator-target">${game.i18n.localize("C2T.Resources.NoTarget")}</strong>
         </div>
 
         <div class="c2t-applicator-status"></div>
 
-        <div class="c2t-applicator-actions">
-          <button type="button" data-action="add" data-severity="minor" class="minor" title="Aplicar Minor wound">I</button>
-          <button type="button" data-action="add" data-severity="moderate" class="moderate" title="Aplicar Moderate wound">II</button>
-          <button type="button" data-action="add" data-severity="major" class="major" title="Aplicar Major wound">III</button>
-          <button type="button" data-action="heal" class="heal" title="Curar o wound mais grave">
-            <i class="fa-solid fa-kit-medical"></i>
-          </button>
+        <div class="c2t-applicator-wound-controls">
+          <div class="c2t-applicator-actions">
+            <button type="button" data-action="add" data-severity="minor" class="minor" title="Aplicar Minor wound">I</button>
+            <button type="button" data-action="add" data-severity="moderate" class="moderate" title="Aplicar Moderate wound">II</button>
+            <button type="button" data-action="add" data-severity="major" class="major" title="Aplicar Major wound">III</button>
+            <button type="button" data-action="heal" class="heal" title="Curar o wound mais grave">
+              <i class="fa-solid fa-kit-medical"></i>
+            </button>
+          </div>
+          <div class="c2t-applicator-hint">Shift + clique remove um wound do tipo escolhido.</div>
         </div>
-        <div class="c2t-applicator-hint">Shift + clique remove um wound do tipo escolhido.</div>
       </div>
     </section>
   `);
@@ -894,4 +898,5 @@ Hooks.on("updateActor", actor => {
 Hooks.on("createItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
 Hooks.on("deleteItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
 Hooks.on("updateItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
+
 

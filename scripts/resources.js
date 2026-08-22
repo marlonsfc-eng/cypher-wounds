@@ -1,11 +1,12 @@
 const MODULE_ID = "cypher-2-toolkit";
 const RESOURCE_CACHE = new Map();
-const POOL_CONFIG = [
+const PC_POOL_CONFIG = [
   ["might", "C2T.Resources.Might", "M"],
   ["speed", "C2T.Resources.Speed", "S"],
   ["intellect", "C2T.Resources.Intellect", "I"],
   ["additional", "C2T.Resources.Additional", "+"]
 ];
+const SUPPORTED_ACTOR_TYPES = new Set(["pc", "npc", "companion", "community", "vehicle"]);
 
 const numberValue = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 
@@ -25,8 +26,8 @@ function escapeHtml(value) {
   })[character]);
 }
 
-function isPlayerCharacter(actor) {
-  return actor?.documentName === "Actor" && actor.type === "pc";
+function isSupportedActor(actor) {
+  return actor?.documentName === "Actor" && SUPPORTED_ACTOR_TYPES.has(actor.type);
 }
 
 function activePoolRoot(actor) {
@@ -39,52 +40,70 @@ function hasAdditionalPool(actor) {
 }
 
 export function getActorResourceSnapshot(actor) {
-  if (!isPlayerCharacter(actor)) return null;
+  if (!isSupportedActor(actor)) return null;
 
-  const poolRoot = activePoolRoot(actor) ?? {};
-  const pools = {};
-  for (const [key, labelKey, shortLabel] of POOL_CONFIG) {
-    if (key === "additional" && !hasAdditionalPool(actor)) continue;
-    pools[key] = {
-      key,
-      label: localize(labelKey),
-      shortLabel,
-      value: numberValue(poolRoot?.[key]?.value),
-      max: numberValue(poolRoot?.[key]?.max)
-    };
+  const stats = [];
+  const addStat = (key, labelKey, shortLabel, value, max = null) => stats.push({
+    key,
+    label: localize(labelKey),
+    shortLabel,
+    value: numberValue(value),
+    max: max === null || max === undefined ? null : numberValue(max)
+  });
+
+  if (actor.type !== "pc") {
+    const health = actor.system?.pools?.health;
+    if (health) addStat("health", "C2T.Resources.Health", "HP", health.value, health.max);
+
+    if (actor.type === "npc" || actor.type === "companion") {
+      addStat("level", "C2T.Resources.Level", "LV", actor.system?.basic?.level);
+      addStat("damage", "C2T.Resources.Damage", "DMG", actor.system?.combat?.damage);
+      addStat("armor", "C2T.Resources.Armor", "AR", actor.system?.combat?.armor);
+    } else if (actor.type === "community") {
+      const infrastructure = actor.system?.pools?.infrastructure;
+      if (infrastructure) {
+        addStat("infrastructure", "C2T.Resources.Infrastructure", "INF", infrastructure.value, infrastructure.max);
+      }
+      addStat("rank", "C2T.Resources.Rank", "RK", actor.system?.basic?.rank);
+      addStat("damage", "C2T.Resources.Damage", "DMG", actor.system?.combat?.damage);
+      addStat("armor", "C2T.Resources.Armor", "AR", actor.system?.combat?.armor);
+    } else if (actor.type === "vehicle") {
+      addStat("level", "C2T.Resources.Level", "LV", actor.system?.basic?.level);
+      addStat("crew", "C2T.Resources.Crew", "CR", actor.system?.basic?.crew);
+      addStat("weapons", "C2T.Resources.Weapons", "WP", actor.system?.basic?.weaponSystems);
+    }
+
+    return {actorType: actor.type, stats};
   }
 
-  return {
-    xp: numberValue(actor.system?.basic?.xp),
-    pools
-  };
+  const poolRoot = activePoolRoot(actor) ?? {};
+  addStat("xp", "C2T.Resources.XP", "XP", actor.system?.basic?.xp);
+  for (const [key, labelKey, shortLabel] of PC_POOL_CONFIG) {
+    if (key === "additional" && !hasAdditionalPool(actor)) continue;
+    addStat(key, labelKey, shortLabel, poolRoot?.[key]?.value, poolRoot?.[key]?.max);
+  }
+
+  return {actorType: actor.type, stats};
 }
 
 function snapshotChanges(previous, current) {
   if (!previous || !current) return [];
   const changes = [];
 
-  if (previous.xp !== current.xp) {
-    changes.push({
-      label: localize("C2T.Resources.XP"),
-      before: String(previous.xp),
-      after: String(current.xp)
-    });
-  }
+  const previousStats = new Map((previous.stats ?? []).map(stat => [stat.key, stat]));
+  const currentStats = new Map((current.stats ?? []).map(stat => [stat.key, stat]));
+  const statKeys = new Set([...previousStats.keys(), ...currentStats.keys()]);
+  const formattedValue = stat => stat.max === null ? String(stat.value) : `${stat.value}/${stat.max}`;
 
-  const poolKeys = new Set([
-    ...Object.keys(previous.pools ?? {}),
-    ...Object.keys(current.pools ?? {})
-  ]);
-  for (const key of poolKeys) {
-    const before = previous.pools?.[key];
-    const after = current.pools?.[key];
+  for (const key of statKeys) {
+    const before = previousStats.get(key);
+    const after = currentStats.get(key);
     if (!before || !after) continue;
     if (before.value === after.value && before.max === after.max) continue;
     changes.push({
       label: after.label,
-      before: `${before.value}/${before.max}`,
-      after: `${after.value}/${after.max}`
+      before: formattedValue(before),
+      after: formattedValue(after)
     });
   }
 
@@ -185,4 +204,5 @@ Hooks.on("updateActor", async (actor, _changes, _options, userId) => {
     console.error(`${MODULE_ID} | Failed to create the private resource audit message.`, error);
   }
 });
+
 
