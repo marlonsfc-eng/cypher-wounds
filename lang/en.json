@@ -181,7 +181,21 @@
   "C2T.Recovery.MajorRecoveryIntro": "The ten-hour recovery is complete. You may now attempt a Might task to remove one Major Wound; this does not consume another recovery.",
   "C2T.Recovery.AttemptMajor": "Attempt to remove one Major Wound",
   "C2T.Recovery.MightDifficulty": "Might task, difficulty {difficulty}",
-  "C2T.Recovery.MajorRecoveryRoll": "Ten-hour Recovery: Major Wound"
+  "C2T.Recovery.MajorRecoveryRoll": "Ten-hour Recovery: Major Wound",
+  "C2T.Recovery.Might": "Might",
+  "C2T.Recovery.Speed": "Speed",
+  "C2T.Recovery.Intellect": "Intellect",
+  "C2T.Recovery.DistributeRecovery": "Distribute Recovery Points",
+  "C2T.Recovery.PointsRolled": "Recovery points rolled",
+  "C2T.Recovery.Distributed": "Distributed",
+  "C2T.Recovery.Remaining": "Remaining",
+  "C2T.Recovery.DistributionHint": "Allocate up to the rolled total. Points cannot raise a Pool above its maximum, and unused points may be left over.",
+  "C2T.Recovery.ApplyPoints": "Apply points",
+  "C2T.Recovery.AddPoint": "Add one point",
+  "C2T.Recovery.SubtractPoint": "Subtract one point",
+  "C2T.Recovery.DistributionChanged": "The available capacity of {pool} changed. Review the distribution and try again.",
+  "C2T.Recovery.DistributionOverLimit": "The distribution cannot exceed the rolled limit of {points} points.",
+  "C2T.Recovery.DistributionApplied": "Recovery applied: {allocated} of {points} points distributed."
 }
 
 

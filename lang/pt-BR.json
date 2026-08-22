@@ -181,7 +181,21 @@
   "C2T.Recovery.MajorRecoveryIntro": "A recovery de dez horas foi concluída. Agora você pode tentar uma tarefa de Potência para remover um Major Wound; isso não consome outra recovery.",
   "C2T.Recovery.AttemptMajor": "Tentar remover um Major Wound",
   "C2T.Recovery.MightDifficulty": "Tarefa de Potência, dificuldade {difficulty}",
-  "C2T.Recovery.MajorRecoveryRoll": "Recovery de dez horas: Major Wound"
+  "C2T.Recovery.MajorRecoveryRoll": "Recovery de dez horas: Major Wound",
+  "C2T.Recovery.Might": "Potência",
+  "C2T.Recovery.Speed": "Velocidade",
+  "C2T.Recovery.Intellect": "Intelecto",
+  "C2T.Recovery.DistributeRecovery": "Distribuir pontos de Recovery",
+  "C2T.Recovery.PointsRolled": "Pontos de Recovery rolados",
+  "C2T.Recovery.Distributed": "Distribuídos",
+  "C2T.Recovery.Remaining": "Restantes",
+  "C2T.Recovery.DistributionHint": "Distribua até o total rolado. Os pontos não podem elevar uma Reserva acima do máximo, e pontos excedentes podem permanecer sem uso.",
+  "C2T.Recovery.ApplyPoints": "Aplicar pontos",
+  "C2T.Recovery.AddPoint": "Adicionar um ponto",
+  "C2T.Recovery.SubtractPoint": "Remover um ponto",
+  "C2T.Recovery.DistributionChanged": "A capacidade disponível de {pool} mudou. Revise a distribuição e tente novamente.",
+  "C2T.Recovery.DistributionOverLimit": "A distribuição não pode ultrapassar o limite rolado de {points} pontos.",
+  "C2T.Recovery.DistributionApplied": "Recovery aplicada: {allocated} de {points} pontos distribuídos."
 }
 
 

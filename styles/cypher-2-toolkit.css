@@ -836,6 +836,94 @@
   white-space: normal;
 }
 
+.c2t-pool-distribution {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.c2t-distribution-total,
+.c2t-distribution-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, .1);
+}
+
+.c2t-distribution-total strong {
+  min-width: 34px;
+  font-size: 20px;
+  text-align: center;
+  color: var(--color-text-hyperlink, #ff6400);
+}
+
+.c2t-distribution-pools {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-light-2, #9f9275);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.c2t-distribution-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 75px 34px 34px 34px;
+  align-items: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--color-border-light-2, #9f9275);
+}
+
+.c2t-distribution-row:last-child {
+  border-bottom: 0;
+}
+
+.c2t-distribution-name {
+  font-weight: 700;
+}
+
+.c2t-distribution-current,
+.c2t-distribution-allocation {
+  text-align: center;
+}
+
+.c2t-distribution-row button {
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  line-height: 28px;
+}
+
+.c2t-distribution-allocation {
+  font-size: 16px;
+}
+
+.c2t-distribution-summary strong {
+  font-size: 15px;
+}
+
+.c2t-distribution-hint {
+  margin: 0;
+  font-size: 12px;
+  opacity: .82;
+  line-height: 1.35;
+}
+
+.c2t-distribution-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.c2t-distribution-actions button {
+  min-width: 145px;
+  margin: 0;
+}
+
 @media (max-width: 640px) {
   .c2t-recovery-choices,
   .cyphersystem.sheet.actor.pc .c2t-recovery-workflows {

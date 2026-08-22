@@ -681,13 +681,125 @@ function nextRecoveryKey(actor, type) {
   return recoveryKeys(actor, type).find(key => !actor.system?.combat?.recoveries?.[key]);
 }
 
-async function rollNativeRecovery(actor, bonus = 0) {
-  const dice = `${actor.system?.combat?.recoveries?.roll || "1d6"}${bonus ? `+${bonus}` : ""}`;
-  const { recoveryRollMacro } = await import("/systems/cyphersystem/module/macros/macros.js");
-  await recoveryRollMacro(actor, dice, false);
+function recoveryPoolState(actor) {
+  const teen = actor.system?.basic?.unmaskedForm === "Teen";
+  const root = teen ? "system.teen.pools" : "system.pools";
+  return ["might", "speed", "intellect"].map(pool => ({
+    pool,
+    label: recoveryText(pool[0].toUpperCase() + pool.slice(1)),
+    valuePath: `${root}.${pool}.value`,
+    current: Number(foundry.utils.getProperty(actor, `${root}.${pool}.value`) ?? 0),
+    max: Number(foundry.utils.getProperty(actor, `${root}.${pool}.max`) ?? 0)
+  }));
 }
 
-async function performRecovery(actor, type, plan = {}, { bonus = 0, label } = {}) {
+async function applyRecoveryDistribution(actor, points, allocations) {
+  if (!canEdit(actor)) return ui.notifications.warn(i18n("CW.NoPermission")), false;
+  const pools = recoveryPoolState(actor);
+  const updates = {};
+  let allocated = 0;
+  for (const pool of pools) {
+    const amount = Number(allocations[pool.pool] ?? 0);
+    const available = Math.max(0, pool.max - pool.current);
+    if (!Number.isInteger(amount) || amount < 0 || amount > available) {
+      ui.notifications.warn(recoveryText("DistributionChanged", { pool: pool.label }));
+      return false;
+    }
+    allocated += amount;
+    if (amount) updates[pool.valuePath] = pool.current + amount;
+  }
+  if (allocated > points) {
+    ui.notifications.warn(recoveryText("DistributionOverLimit", { points }));
+    return false;
+  }
+  if (Object.keys(updates).length) await actor.update(updates);
+  ui.notifications.info(recoveryText("DistributionApplied", { allocated, points }));
+  return true;
+}
+
+function openRecoveryDistributionDialog(actor, rolledPoints, { onClose } = {}) {
+  const points = Math.max(0, Math.floor(Number(rolledPoints) || 0));
+  const pools = recoveryPoolState(actor);
+  const content = `<div class="c2t-pool-distribution" data-points="${points}">
+    <div class="c2t-distribution-total"><span>${recoveryText("PointsRolled")}</span><strong>${points}</strong></div>
+    <div class="c2t-distribution-pools">
+      ${pools.map(pool => `<div class="c2t-distribution-row" data-pool="${pool.pool}" data-capacity="${Math.max(0, pool.max - pool.current)}">
+        <span class="c2t-distribution-name">${pool.label}</span>
+        <span class="c2t-distribution-current"><strong data-current>${pool.current}</strong> / ${pool.max}</span>
+        <button type="button" data-distribution-step="-1" aria-label="${recoveryText("SubtractPoint")}"><i class="fa-solid fa-minus"></i></button>
+        <strong class="c2t-distribution-allocation" data-allocation>0</strong>
+        <button type="button" data-distribution-step="1" aria-label="${recoveryText("AddPoint")}"><i class="fa-solid fa-plus"></i></button>
+      </div>`).join("")}
+    </div>
+    <div class="c2t-distribution-summary">
+      <span>${recoveryText("Distributed")}: <strong data-distributed>0</strong> / ${points}</span>
+      <span>${recoveryText("Remaining")}: <strong data-remaining>${points}</strong></span>
+    </div>
+    <p class="c2t-distribution-hint">${recoveryText("DistributionHint")}</p>
+    <div class="c2t-distribution-actions"><button type="button" data-distribution-apply><i class="fa-solid fa-check"></i> ${recoveryText("ApplyPoints")}</button></div>
+  </div>`;
+  const allocations = { might: 0, speed: 0, intellect: 0 };
+  const dialog = new Dialog({
+    title: `${recoveryText("DistributeRecovery")}: ${actor.name}`,
+    content,
+    buttons: { close: { label: recoveryText("Close") } },
+    close: () => onClose?.(),
+    render: html => {
+      const refresh = () => {
+        const used = Object.values(allocations).reduce((sum, value) => sum + value, 0);
+        const remaining = points - used;
+        html.find("[data-distributed]").text(used);
+        html.find("[data-remaining]").text(remaining);
+        html.find(".c2t-distribution-row").each((_, element) => {
+          const row = $(element);
+          const pool = element.dataset.pool;
+          const capacity = Number(element.dataset.capacity ?? 0);
+          row.find("[data-allocation]").text(allocations[pool]);
+          row.find("[data-current]").text(pools.find(entry => entry.pool === pool).current + allocations[pool]);
+          row.find('[data-distribution-step="-1"]').prop("disabled", allocations[pool] <= 0);
+          row.find('[data-distribution-step="1"]').prop("disabled", remaining <= 0 || allocations[pool] >= capacity);
+        });
+      };
+      html.on("click", "[data-distribution-step]", event => {
+        event.preventDefault();
+        const row = event.currentTarget.closest(".c2t-distribution-row");
+        const pool = row.dataset.pool;
+        const capacity = Number(row.dataset.capacity ?? 0);
+        const step = Number(event.currentTarget.dataset.distributionStep);
+        const used = Object.values(allocations).reduce((sum, value) => sum + value, 0);
+        if (step > 0 && (used >= points || allocations[pool] >= capacity)) return;
+        allocations[pool] = Math.max(0, allocations[pool] + step);
+        refresh();
+      });
+      html.on("click", "[data-distribution-apply]", async event => {
+        event.preventDefault();
+        const button = event.currentTarget;
+        button.disabled = true;
+        const applied = await applyRecoveryDistribution(actor, points, allocations);
+        if (applied) dialog.close();
+        else button.disabled = false;
+      });
+      refresh();
+    }
+  }, { width: 500 });
+  dialog.render(true);
+}
+
+async function rollNativeRecovery(actor, bonus = 0, { onDistributionClose } = {}) {
+  const dice = `${actor.system?.combat?.recoveries?.roll || "1d6"}${bonus ? `+${bonus}` : ""}`;
+  const roll = await new Roll(dice).evaluate();
+  const reRollButton = `<div style="text-align: right"><a class="reroll-recovery" data-dice="${dice}" data-user="${game.user.id}" data-actor-uuid="${actor.uuid}"><i class="fa-item fas fa-dice-d20"></i></a></div>`;
+  const message = await roll.toMessage({
+    speaker: ChatMessage.getSpeaker({ actor }),
+    flavor: game.i18n.format("CYPHERSYSTEM.UseARecoveryRoll", { name: actor.name, recoveryUsed: "" }) + reRollButton,
+    flags: { itemID: "recovery-roll" }
+  });
+  if (message?.id) await game.dice3d?.waitFor3DAnimationByMessageID?.(message.id);
+  openRecoveryDistributionDialog(actor, roll.total, { onClose: onDistributionClose });
+  return roll.total;
+}
+
+async function performRecovery(actor, type, plan = {}, { bonus = 0, label, afterDistribution } = {}) {
   const lock = `${actor.uuid}:recovery`;
   if (recoveryWorkflowLocks.has(lock)) return false;
   recoveryWorkflowLocks.add(lock);
@@ -696,7 +808,7 @@ async function performRecovery(actor, type, plan = {}, { bonus = 0, label } = {}
     const key = nextRecoveryKey(actor, type);
     if (!key) return ui.notifications.warn(recoveryText("RecoveryAlreadyUsed", { recovery: label })), false;
     const result = await healByPlan(actor, plan, { updates: { [`system.combat.recoveries.${key}`]: true } });
-    await rollNativeRecovery(actor, bonus);
+    await rollNativeRecovery(actor, bonus, { onDistributionClose: afterDistribution });
     ui.notifications.info(recoveryText("RecoveryComplete", { recovery: label }));
     return { ...result, key };
   } finally {
@@ -722,8 +834,8 @@ function openMajorRecoveryAttempt(actor) {
 
 function openTenHourDialog(actor) {
   return openRecoveryDialog({ actor, title: recoveryText("TenHourRecovery"), intro: `<p>${recoveryText("TenHourChoice")}</p><p class="c2t-recovery-note"><i class="fa-solid fa-circle-info"></i> ${recoveryText("TenHourMajorNote")}</p>`, choices: [
-    { action: "moderate", icon: "fa-kit-medical", label: recoveryText("RemoveAllModerate"), callback: async () => { const result = await performRecovery(actor, "tenHours", { moderate: "all" }, { label: recoveryText("TenHours") }); if (result) openMajorRecoveryAttempt(actor); return Boolean(result); } },
-    { action: "alternative", icon: "fa-bandage", label: recoveryText("TenHourAlternative"), detail: recoveryText("TenHourAlternativeDetail"), callback: async () => { const wounds = await getData(actor); const result = await performRecovery(actor, "tenHours", { moderate: Math.max(0, wounds.current.moderate - 1), minor: "all" }, { label: recoveryText("TenHours") }); if (result) openMajorRecoveryAttempt(actor); return Boolean(result); } }
+    { action: "moderate", icon: "fa-kit-medical", label: recoveryText("RemoveAllModerate"), callback: () => performRecovery(actor, "tenHours", { moderate: "all" }, { label: recoveryText("TenHours"), afterDistribution: () => openMajorRecoveryAttempt(actor) }) },
+    { action: "alternative", icon: "fa-bandage", label: recoveryText("TenHourAlternative"), detail: recoveryText("TenHourAlternativeDetail"), callback: async () => { const wounds = await getData(actor); return performRecovery(actor, "tenHours", { moderate: Math.max(0, wounds.current.moderate - 1), minor: "all" }, { label: recoveryText("TenHours"), afterDistribution: () => openMajorRecoveryAttempt(actor) }); } }
   ] });
 }
 

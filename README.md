@@ -266,6 +266,11 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Recovery consome exatamente a opção escolhida, mantém a rolagem nativa e automatiza os efeitos sobre wounds.
 - Inclui Last Action +2 e as escolhas de uma hora e dez horas, incluindo o teste adicional de Potência para Major Wound.
 
+## v0.10.1
+- Abre uma janela de distribuição após cada rolagem de Recovery.
+- Permite alocar o resultado entre Potência, Velocidade e Intelecto sem ultrapassar o total rolado ou o máximo de cada Reserva.
+- Exibe os pontos distribuídos e restantes em tempo real e aplica todas as alterações em uma única atualização da ficha.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
