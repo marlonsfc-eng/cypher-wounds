@@ -294,6 +294,10 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Corrige a inserção do botão do Assistente de Oportunidades no chat do Foundry VTT 13.
 - Localiza o formulário de mensagem na interface completa e tenta novamente após o sidebar terminar de renderizar.
 
+## v0.12.2
+- Torna o botão do Assistente independente da estrutura HTML interna do sidebar.
+- Anexa o acesso diretamente à interface do Foundry e o posiciona junto ao campo de mensagem, com fallback visível mesmo quando o chat não pode ser localizado.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

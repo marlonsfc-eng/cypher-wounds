@@ -395,29 +395,43 @@ async function openPanel() {
   renderPanel();
 }
 
-function injectChatLauncher(_app, html) {
-  if (!game.user?.isGM || !game.settings.get(MODULE_ID, ENABLED_SETTING)) return;
-  const root = html?.[0] ?? html;
-  if (document.querySelector(`.${LAUNCHER_CLASS}`)) return;
-  const localForm = root instanceof HTMLElement
-    ? (root.matches?.("#chat-form") ? root : root.querySelector("#chat-form"))
-    : null;
+function positionChatLauncher(button) {
   const message = document.querySelector("#chat-message, textarea[name='message'], textarea[data-action='send-message']");
-  const form = localForm ?? document.querySelector("#chat-form") ?? message?.closest("form");
-  if (!form) return;
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = LAUNCHER_CLASS;
-  button.title = t("OpenAssistant");
-  button.innerHTML = `<i class="fa-solid fa-wand-sparkles"></i><span>${t("Launcher")}</span>`;
-  button.addEventListener("click", openPanel);
-  form.parentElement?.insertBefore(button, form);
+  const sidebar = document.querySelector("#sidebar");
+  const anchor = message ?? sidebar;
+  if (!anchor) {
+    button.style.removeProperty("left");
+    button.style.removeProperty("top");
+    button.style.right = "12px";
+    button.style.bottom = "118px";
+    return;
+  }
+  const rect = anchor.getBoundingClientRect();
+  const width = Math.max(150, Math.min(220, rect.width - 8));
+  button.style.width = `${width}px`;
+  button.style.left = `${Math.max(4, rect.right - width - 4)}px`;
+  button.style.top = `${Math.max(4, rect.top - 32)}px`;
+  button.style.removeProperty("right");
+  button.style.removeProperty("bottom");
+}
+
+function injectChatLauncher() {
+  if (!game.user?.isGM || !game.settings.get(MODULE_ID, ENABLED_SETTING)) return;
+  let button = document.querySelector(`.${LAUNCHER_CLASS}`);
+  if (!button) {
+    button = document.createElement("button");
+    button.type = "button";
+    button.className = LAUNCHER_CLASS;
+    button.title = t("OpenAssistant");
+    button.innerHTML = `<i class="fa-solid fa-wand-sparkles"></i><span>${t("Launcher")}</span>`;
+    button.addEventListener("click", openPanel);
+    document.body.appendChild(button);
+  }
+  positionChatLauncher(button);
 }
 
 function refreshChatLaunchers() {
-  const chat = ui.chat?.element;
-  if (chat) injectChatLauncher(ui.chat, chat);
-  else injectChatLauncher(null, document.body);
+  injectChatLauncher();
 }
 
 function scheduleChatLauncher() {
@@ -457,7 +471,8 @@ Hooks.on("updateSetting", setting => {
     renderPanel();
   }
 });
-Hooks.on("renderChatLog", (_app, html) => { injectChatLauncher(_app, html); scheduleChatLauncher(); });
-Hooks.on("renderChatPopout", (_app, html) => { injectChatLauncher(_app, html); scheduleChatLauncher(); });
+Hooks.on("renderChatLog", scheduleChatLauncher);
+Hooks.on("renderChatPopout", scheduleChatLauncher);
 Hooks.on("renderSidebar", scheduleChatLauncher);
+window.addEventListener("resize", scheduleChatLauncher);
 
