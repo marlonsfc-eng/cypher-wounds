@@ -64,7 +64,16 @@ function itemData(entry, category="abilities", context=null) {
   const base = cleanObject(entry.document ?? entry.data);
   const origin = resolveOrigin(entry, category, context ?? {types:new Map(), foci:new Map()});
   const isSkill = category === "skills";
-  const systemDefaults = isSkill ? {
+  const isCypher = category === "cyphers";
+  const systemDefaults = isCypher ? {
+    version: 2,
+    description: htmlFromEntry(entry),
+    archived: false,
+    favorite: false,
+    price: { value: 0, currency: "", priceTag: "", category: "none" },
+    basic: { level: String(entry.level ?? ""), type: [0, 0], identified: true },
+    settings: { general: { nameUnidentified: "" } }
+  } : isSkill ? {
     version: 2,
     description: htmlFromEntry(entry),
     archived: false,
@@ -114,12 +123,14 @@ function itemData(entry, category="abilities", context=null) {
   const system = foundry.utils.mergeObject(systemDefaults, cleanObject(base.system), {inplace:false, overwrite:true});
 
   return foundry.utils.mergeObject({
-    name: String(entry.name ?? "Unnamed Entry"), type: String(base.type ?? entry.type ?? (category === "skills" ? "skill" : "ability")),
+    name: String(entry.name ?? "Unnamed Entry"), type: String(base.type ?? entry.type ?? (isCypher ? "cypher" : category === "skills" ? "skill" : "ability")),
     img: String(base.img ?? entry.img ?? "icons/svg/book.svg"), system,
     flags: { [C2T_ID]: {
       sourceId: getSourceId(entry, category), category, tier: entry.tier ?? null, source: entry.source ?? null,
       useMode: entry.useMode ?? "chat", abilities: Array.isArray(entry.abilities) ? entry.abilities : [],
-      apply: entry.apply ?? null, origin
+      apply: entry.apply ?? null, origin, page: entry.page ?? entry.source?.page ?? null,
+      tags: Array.isArray(entry.tags) ? entry.tags : [], effect: entry.effect ?? null,
+      explanation: entry.explanation ?? null, randomCypher: isCypher
     }}
   }, base, {inplace:false, overwrite:true});
 }
@@ -223,7 +234,7 @@ async function upsertDocuments(pack, entries, category, context, mode="update") 
 
 function validatePayload(payload){
   if(!payload||typeof payload!=="object"||Array.isArray(payload)) throw new Error(c2tLocalize("C2T.Importer.InvalidRoot"));
-  const supported=["types","foci","descriptors","skills","abilities"];
+  const supported=["types","foci","descriptors","skills","abilities","cyphers"];
   if(!supported.some(key=>Array.isArray(payload[key]))) throw new Error(c2tLocalize("C2T.Importer.NoCollections"));
   for(const key of supported){if(payload[key]!==undefined&&!Array.isArray(payload[key])) throw new Error(`${key}: ${c2tLocalize("C2T.Importer.MustBeArray")}`);for(const entry of payload[key]??[]){if(!entry||typeof entry!=="object"||!entry.name) throw new Error(`${key}: ${c2tLocalize("C2T.Importer.MissingName")}`);}}
 }
@@ -232,9 +243,9 @@ export async function importCypherContent(payload,options={}){
   if(!game.user.isGM) throw new Error(c2tLocalize("C2T.GMOnly")); validatePayload(payload);
   const mode=options.mode==="replace"?"replace":"update"; const prefix=slugify(options.prefix??payload.meta?.packPrefix??"cypher-2");
   const labels=payload.meta?.labels??{}; const summary={}; const context=buildImportContext(payload);
-  for(const category of ["abilities","types","foci","descriptors","skills"]){
+  for(const category of ["abilities","types","foci","descriptors","skills","cyphers"]){
     if(!Array.isArray(payload[category])) continue;
-    const defaultLabel=category==="abilities"?"Cypher 2 — Abilities":category==="types"?"Cypher 2 — Types":category==="foci"?"Cypher 2 — Foci":category==="descriptors"?"Cypher 2 — Descriptors":"Cypher 2 — Skills";
+    const defaultLabel=category==="abilities"?"Cypher 2 — Abilities":category==="types"?"Cypher 2 — Types":category==="foci"?"Cypher 2 — Foci":category==="descriptors"?"Cypher 2 — Descriptors":category==="cyphers"?"Cypher 2 — Random Cyphers":"Cypher 2 — Skills";
     const pack=await ensureWorldPack({name:`${prefix}-${category}`,label:labels[category]??defaultLabel,type:"Item"});
     summary[category]=await upsertDocuments(pack,payload[category],category,context,mode);
   }

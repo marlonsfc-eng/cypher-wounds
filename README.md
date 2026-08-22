@@ -63,17 +63,19 @@ Abra:
 Configurações do jogo → Configurar definições → Cypher 2 Toolkit → Abrir importador
 ```
 
-O importador aceita JSON com até três coleções:
+O importador aceita JSON com as seguintes coleções:
 
 - `abilities`: criadas como Items do tipo `ability`;
-- `types`: criados como Journal Entries;
-- `foci`: criados como Journal Entries.
+- `types`, `foci` e `descriptors`;
+- `skills`: criadas como Items do tipo `skill`;
+- `cyphers`: criados como Items do tipo `cypher`.
 
 Os compêndios são criados no mundo:
 
 - `Cypher 2 — Abilities`;
 - `Cypher 2 — Types`;
 - `Cypher 2 — Foci`.
+- `Cypher 2 — Random Cyphers`.
 
 Types e Foci podem listar habilidades relacionadas no campo `abilities`. O importador cria links para os Items correspondentes.
 
@@ -277,6 +279,11 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Mantém guardados, histórico antirrepetição e posição/minimização do painel por cliente.
 - Localiza Items correspondentes no mundo e em compêndios sem duplicar suas descrições no módulo.
 - Permite lembrar o Mestre, adicionar o Item à ficha, enviar em segredo aos donos do personagem ou publicar a oportunidade no chat.
+
+## v0.11.1
+- Adiciona suporte à coleção `cyphers` no importador privado de JSON.
+- Cria Items nativos do tipo `cypher` em um compêndio próprio e preserva página, tags, efeito e explicação nos flags do Toolkit.
+- O Assistente de Oportunidades passa a usar a explicação específica importada como sugestão narrativa, quando disponível.
 
 
 ## v0.9.1

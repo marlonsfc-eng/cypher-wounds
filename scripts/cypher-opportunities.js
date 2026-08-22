@@ -81,7 +81,7 @@ async function saveState() {
 }
 
 function sourceFromWorldItem(item) {
-  return { name: item.name, img: item.img, uuid: item.uuid, type: item.type, description: item.system?.description ?? item.system?.basic?.description ?? "", source: "world", document: item };
+  return { name: item.name, img: item.img, uuid: item.uuid, type: item.type, description: item.system?.description ?? item.system?.basic?.description ?? "", explanation: item.getFlag?.(MODULE_ID, "explanation") ?? "", source: "world", document: item };
 }
 
 async function buildSourceIndex() {
@@ -93,11 +93,11 @@ async function buildSourceIndex() {
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Item") continue;
     try {
-      const index = await pack.getIndex({ fields: ["name", "type", "img", "system.description", "system.basic.description"] });
+      const index = await pack.getIndex({ fields: ["name", "type", "img", "system.description", "system.basic.description", `flags.${MODULE_ID}.explanation`] });
       for (const entry of index) {
         const key = normalize(entry.name);
         if (!catalogByName.has(key) || found.has(key)) continue;
-        found.set(key, { name: entry.name, img: entry.img, uuid: entry.uuid, type: entry.type, description: entry.system?.description ?? entry.system?.basic?.description ?? "", source: pack.metadata?.label ?? pack.title ?? pack.collection, pack: pack.collection, id: entry._id ?? entry.id });
+        found.set(key, { name: entry.name, img: entry.img, uuid: entry.uuid, type: entry.type, description: entry.system?.description ?? entry.system?.basic?.description ?? "", explanation: foundry.utils.getProperty(entry, `flags.${MODULE_ID}.explanation`) ?? "", source: pack.metadata?.label ?? pack.title ?? pack.collection, pack: pack.collection, id: entry._id ?? entry.id });
       }
     } catch (error) {
       console.warn(`${MODULE_ID} | Could not index Item pack ${pack.collection}`, error);
@@ -123,6 +123,8 @@ function contextLabel(context) {
 }
 
 function promptFor(entry) {
+  const explanation = cypherSources.get(normalize(entry.name))?.explanation;
+  if (explanation) return escapeHtml(explanation);
   const active = state.contexts.find(context => entry.tags.includes(context)) ?? entry.tags[0] ?? "dramatic";
   return t(`Prompt.${active[0].toUpperCase() + active.slice(1)}`, { cypher: entry.name });
 }
