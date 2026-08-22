@@ -1124,6 +1124,85 @@ async function applyToApplicatorTargets(action, severity=null) {
   refreshUniversalApplicator();
 }
 
+function scenePcTokens() {
+  const tokens = canvas?.ready ? (canvas.tokens?.placeables ?? []) : [];
+  const actors = new Set();
+  return tokens.filter(token => {
+    const actor = token.actor;
+    if (!actor || actor.type !== "pc" || actors.has(actor.id)) return false;
+    if (token.document?.hidden) return false;
+    const defeatedStatus = CONFIG.specialStatusEffects?.DEFEATED;
+    const defeated = token.combatant?.defeated
+      || (defeatedStatus && token.document?.hasStatusEffect?.(defeatedStatus));
+    if (defeated) return false;
+    actors.add(actor.id);
+    return true;
+  }).sort((left, right) => left.actor.name.localeCompare(right.actor.name));
+}
+
+async function publishRandomPc(token, candidateCount) {
+  const actor = token?.actor;
+  if (!actor) return;
+  try {
+    token.setTarget(true, {user: game.user, releaseOthers: true, groupSelection: false});
+    token.control({releaseOthers: true});
+    await canvas.animatePan({x: token.center.x, y: token.center.y, duration: 500});
+  } catch (error) {
+    console.warn(`${MODULE_ID} | Could not focus the randomly selected PC token`, error);
+  }
+
+  const link = token.document?.uuid ? `@UUID[${token.document.uuid}]{${actor.name}}` : actor.name;
+  const content = await TextEditor.enrichHTML(`
+    <div class="c2t-random-pc-chat">
+      <h3><i class="fa-solid fa-dice"></i> ${game.i18n.localize("C2T.RandomPC.ChatTitle")}</h3>
+      <p>${game.i18n.format("C2T.RandomPC.ChatResult", {actor: link, count: candidateCount})}</p>
+    </div>
+  `, {async: true});
+  await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content});
+}
+
+async function drawRandomPc(tokens) {
+  if (!tokens.length) return ui.notifications.warn(game.i18n.localize("C2T.RandomPC.None"));
+  const token = tokens[Math.floor(Math.random() * tokens.length)];
+  await publishRandomPc(token, tokens.length);
+}
+
+function openRandomPcDialog(tokens) {
+  if (!tokens.length) return ui.notifications.warn(game.i18n.localize("C2T.RandomPC.None"));
+  const rows = tokens.map(token => `
+    <label class="c2t-random-pc-choice">
+      <input type="checkbox" name="token" value="${token.id}" checked>
+      <img src="${token.actor.img}" alt="">
+      <span>${token.actor.name}</span>
+    </label>
+  `).join("");
+  new Dialog({
+    title: game.i18n.localize("C2T.RandomPC.DialogTitle"),
+    content: `<form class="c2t-random-pc-form"><p>${game.i18n.localize("C2T.RandomPC.DialogIntro")}</p><div>${rows}</div></form>`,
+    buttons: {
+      draw: {
+        icon: '<i class="fa-solid fa-dice"></i>',
+        label: game.i18n.localize("C2T.RandomPC.Draw"),
+        callback: html => {
+          const selected = new Set(html.find("input[name='token']:checked").map((_index, input) => input.value).get());
+          return drawRandomPc(tokens.filter(token => selected.has(token.id)));
+        }
+      },
+      cancel: {label: game.i18n.localize("C2T.RandomPC.Cancel")}
+    },
+    default: "draw"
+  }, {width: 390}).render(true);
+}
+
+async function handleRandomPc(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (!game.user.isGM) return;
+  const tokens = scenePcTokens();
+  if (event.shiftKey) openRandomPcDialog(tokens);
+  else await drawRandomPc(tokens);
+}
+
 function makeUniversalWoundApplicator() {
   $("#c2t-universal-wound-applicator").remove();
   if (!game.settings.get(MODULE_ID, "universalWoundApplicator")) return;
@@ -1133,6 +1212,9 @@ function makeUniversalWoundApplicator() {
       <header class="c2t-applicator-header">
         <span><i class="fa-solid fa-heart-crack"></i> ${game.i18n.localize("C2T.Resources.PanelTitle")}</span>
         <div class="c2t-applicator-header-actions">
+          ${game.user.isGM ? `<button type="button" class="c2t-random-pc" title="${game.i18n.localize("C2T.RandomPC.ButtonHint")}">
+            <i class="fa-solid fa-dice"></i>
+          </button>` : ""}
           <button type="button" class="c2t-applicator-reset-size" title="Restaurar tamanho">
             <i class="fa-solid fa-up-right-and-down-left-from-center"></i>
           </button>
@@ -1187,6 +1269,8 @@ function makeUniversalWoundApplicator() {
     const effectiveAction = action === "add" && event.shiftKey ? "remove" : action;
     await applyToApplicatorTargets(effectiveAction, severity);
   });
+
+  panel.find(".c2t-random-pc").on("click", handleRandomPc);
 
   panel.find(".c2t-applicator-reset-size").on("click", event => {
     event.preventDefault();

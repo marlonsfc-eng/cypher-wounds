@@ -298,6 +298,12 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Torna o botão do Assistente independente da estrutura HTML interna do sidebar.
 - Anexa o acesso diretamente à interface do Foundry e o posiciona junto ao campo de mensagem, com fallback visível mesmo quando o chat não pode ser localizado.
 
+## v0.13.0
+- Adiciona ao painel Wounds & Resources um sorteio de PCs presentes na cena.
+- O clique comum ignora tokens ocultos e derrotados, evita peso duplicado por ator, seleciona e marca o resultado como alvo do GM e centraliza a câmera.
+- Shift + clique permite escolher os participantes antes do sorteio.
+- Publica o resultado no chat geral para todos os jogadores.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
