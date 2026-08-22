@@ -248,3 +248,14 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Adds native Skill compendium import support.
 - Skill JSON entries are imported as Cypher System `skill` Items with Trained rating and the native Roll Item controls.
 - Adds support for campaign-specific skill libraries such as the Numenera skill list.
+
+
+## v0.9.0
+- Mostra discretamente XP e Reservas de Potência, Velocidade e Intelecto no painel universal de wounds.
+- Mostra a Reserva adicional somente quando ela está habilitada na ficha.
+- Mantém a ficha nativa como único local de edição: o painel é apenas informativo.
+- Registra mudanças de XP e Reservas em mensagens privadas visíveis somente aos Mestres.
+- Identifica o personagem, o usuário responsável e os valores anterior e posterior.
+- Evita mensagens duplicadas quando há mais de um Mestre conectado.
+- Permite desativar separadamente a exibição no painel e os avisos privados nas configurações do módulo.
+

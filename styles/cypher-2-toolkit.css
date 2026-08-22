@@ -538,6 +538,63 @@
 .c2t-applicator-value.moderate { color: #ffb13b; }
 .c2t-applicator-value.major { color: #ff537d; }
 
+.c2t-applicator-resources {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 18px;
+  margin-top: 5px;
+  padding: 3px 5px;
+  color: rgba(238, 238, 238, 0.7);
+  background: rgba(0, 0, 0, 0.13);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.c2t-resource-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.c2t-resource-value strong {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 9px;
+}
+
+.c2t-resource-value.xp {
+  padding-right: 6px;
+  color: #d4b965;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.c2t-resource-value.might > span { color: #d67c75; }
+.c2t-resource-value.speed > span { color: #d6c875; }
+.c2t-resource-value.intellect > span { color: #78aeda; }
+.c2t-resource-value.additional > span { color: #ac8ad7; }
+
+.c2t-resource-audit header {
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.c2t-resource-audit p {
+  margin: 0 0 4px;
+  opacity: 0.8;
+}
+
+.c2t-resource-audit ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.c2t-resource-audit li span {
+  margin-left: 4px;
+}
+
 .c2t-applicator-hinder {
   margin-top: 5px;
   padding-top: 4px;
@@ -575,3 +632,4 @@
 .cyphersystem.sheet.actor.pc .c2t-recovery-only > li.item:not(.item-header):last-child {
   border-top: 0;
 }
+

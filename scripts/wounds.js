@@ -1,3 +1,5 @@
+import {getActorResourceSnapshot} from "./resources.js";
+
 const MODULE_ID = "cypher-2-toolkit";
 const LEGACY_MODULE_ID = "cypher-wounds";
 const MODEL_VERSION = 2;
@@ -653,6 +655,9 @@ async function refreshUniversalApplicator() {
 
   for (const actor of targets) {
     const data = await getData(actor);
+    const resources = game.settings.get(MODULE_ID, "showResourcesInPanel")
+      ? getActorResourceSnapshot(actor)
+      : null;
     const actorRow = $(`
       <div class="c2t-applicator-actor" data-actor-id="${actor.id}">
         <div class="c2t-applicator-actor-top">
@@ -665,6 +670,7 @@ async function refreshUniversalApplicator() {
           </button>
         </div>
         <div class="c2t-applicator-summary"></div>
+        <div class="c2t-applicator-resources"></div>
         <div class="c2t-applicator-hinder">
           Hinder <strong>${hindrance(data)}</strong>
         </div>
@@ -688,6 +694,24 @@ async function refreshUniversalApplicator() {
           <strong>${current}/${capacity}</strong>
         </div>
       `);
+    }
+
+    const resourceRow = actorRow.find(".c2t-applicator-resources");
+    if (resources) {
+      resourceRow.append(`
+        <span class="c2t-resource-value xp" title="${game.i18n.localize("C2T.Resources.XP")}">
+          <i class="fa-solid fa-star"></i><strong>${resources.xp}</strong>
+        </span>
+      `);
+      for (const pool of Object.values(resources.pools)) {
+        resourceRow.append(`
+          <span class="c2t-resource-value ${pool.key}" title="${pool.label}">
+            <span>${pool.shortLabel}</span><strong>${pool.value}/${pool.max}</strong>
+          </span>
+        `);
+      }
+    } else {
+      resourceRow.remove();
     }
 
     status.append(actorRow);
@@ -724,28 +748,6 @@ async function applyToApplicatorTargets(action, severity=null) {
       : `Aplicado 1 ${universalSeverityLabel(severity)} wound`;
 
   ui.notifications.info(`${verb} em ${applicatorTargetLabel(targets)}.`);
-
-  panel.find(".c2t-applicator-reset-size").on("click", event => {
-    event.preventDefault();
-    event.stopPropagation();
-    clearApplicatorSize();
-    panel.css({width: "", height: ""});
-  });
-
-  if (globalThis.ResizeObserver) {
-    let resizeTimer = null;
-    const observer = new ResizeObserver(entries => {
-      const entry = entries[0];
-      if (!entry || panel.hasClass("collapsed")) return;
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        const rect = panel[0].getBoundingClientRect();
-        saveApplicatorSize(rect.width, rect.height);
-      }, 150);
-    });
-    observer.observe(panel[0]);
-    panel.data("c2tResizeObserver", observer);
-  }
 
   refreshUniversalApplicator();
 }
@@ -812,6 +814,28 @@ function makeUniversalWoundApplicator() {
     await applyToApplicatorTargets(effectiveAction, severity);
   });
 
+  panel.find(".c2t-applicator-reset-size").on("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearApplicatorSize();
+    panel.css({width: "", height: ""});
+  });
+
+  if (globalThis.ResizeObserver) {
+    let resizeTimer = null;
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (!entry || panel.hasClass("collapsed")) return;
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const rect = panel[0].getBoundingClientRect();
+        saveApplicatorSize(rect.width, rect.height);
+      }, 150);
+    });
+    observer.observe(panel[0]);
+    panel.data("c2tResizeObserver", observer);
+  }
+
   panel.find(".c2t-applicator-collapse").on("click", event => {
     event.preventDefault();
     panel.toggleClass("collapsed");
@@ -858,6 +882,7 @@ Hooks.on("canvasReady", () => {
 Hooks.on("controlToken", refreshUniversalApplicator);
 Hooks.on("targetToken", refreshUniversalApplicator);
 Hooks.on("updateUser", refreshUniversalApplicator);
+Hooks.on("c2tRefreshResourcePanel", refreshUniversalApplicator);
 
 Hooks.on("refreshToken", token => refreshTokenWounds(token).catch(console.error));
 Hooks.on("drawToken", token => refreshTokenWounds(token).catch(console.error));
@@ -869,3 +894,4 @@ Hooks.on("updateActor", actor => {
 Hooks.on("createItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
 Hooks.on("deleteItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
 Hooks.on("updateItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
+

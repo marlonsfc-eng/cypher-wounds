@@ -81,5 +81,17 @@
   "CW.Settings.TokenVisibility.Owners": "Mestre e proprietários",
   "CW.Settings.TokenVisibility.None": "Ninguém",
   "CW.Settings.AutoHinder.Name": "Preencher penalidade de ferimentos nas rolagens",
-  "CW.Settings.AutoHinder.Hint": "Ajusta os campos iniciais de eased/hindered sem substituir o motor de rolagem do sistema."
+  "CW.Settings.AutoHinder.Hint": "Ajusta os campos iniciais de eased/hindered sem substituir o motor de rolagem do sistema.",
+  "C2T.Resources.XP": "XP",
+  "C2T.Resources.Might": "Potência",
+  "C2T.Resources.Speed": "Velocidade",
+  "C2T.Resources.Intellect": "Intelecto",
+  "C2T.Resources.Additional": "Reserva adicional",
+  "C2T.Resources.AuditTitle": "Alteração de recursos",
+  "C2T.Resources.UnknownUser": "Usuário desconhecido",
+  "C2T.Resources.Settings.Panel.Name": "Mostrar recursos no painel de ferimentos",
+  "C2T.Resources.Settings.Panel.Hint": "Exibe discretamente XP e os valores atuais/máximos das Reservas no painel universal, sem adicionar controles de edição.",
+  "C2T.Resources.Settings.Audit.Name": "Avisar Mestres sobre alterações de recursos",
+  "C2T.Resources.Settings.Audit.Hint": "Cria uma mensagem privada no chat, visível apenas aos Mestres, quando XP ou uma Reserva de um personagem é alterada."
 }
+

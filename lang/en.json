@@ -81,5 +81,17 @@
   "CW.Settings.TokenVisibility.Owners": "GM and owners",
   "CW.Settings.TokenVisibility.None": "Nobody",
   "CW.Settings.AutoHinder.Name": "Prefill wound hindrance in rolls",
-  "CW.Settings.AutoHinder.Hint": "Adjusts the initial eased/hindered fields without replacing the system roll engine."
+  "CW.Settings.AutoHinder.Hint": "Adjusts the initial eased/hindered fields without replacing the system roll engine.",
+  "C2T.Resources.XP": "XP",
+  "C2T.Resources.Might": "Might",
+  "C2T.Resources.Speed": "Speed",
+  "C2T.Resources.Intellect": "Intellect",
+  "C2T.Resources.Additional": "Additional Pool",
+  "C2T.Resources.AuditTitle": "Resource change",
+  "C2T.Resources.UnknownUser": "Unknown user",
+  "C2T.Resources.Settings.Panel.Name": "Show resources in the wound panel",
+  "C2T.Resources.Settings.Panel.Hint": "Discreetly shows XP and current/maximum Pool values in the universal panel without adding editing controls.",
+  "C2T.Resources.Settings.Audit.Name": "Notify GMs about resource changes",
+  "C2T.Resources.Settings.Audit.Hint": "Creates a private GM-only chat message when a character's XP or Pool is changed."
 }
+

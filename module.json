@@ -1,8 +1,8 @@
 {
   "id": "cypher-2-toolkit",
   "title": "Cypher 2 Toolkit",
-  "description": "Ferimentos do Cypher 2, special rolls e importador privado de Types, Foci, Descriptors, Skills e Abilities.",
-  "version": "0.8.0",
+  "description": "Ferimentos do Cypher 2, special rolls, acompanhamento discreto de recursos e importador privado de conteúdo.",
+  "version": "0.9.0",
   "authors": [
     {
       "name": "Marlon Campos"
@@ -51,3 +51,4 @@
   "manifest": "https://raw.githubusercontent.com/marlonsfc-eng/cypher-wounds/main/module.json",
   "download": "https://github.com/marlonsfc-eng/cypher-wounds/archive/refs/heads/main.zip"
 }
+
