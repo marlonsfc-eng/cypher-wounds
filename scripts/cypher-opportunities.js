@@ -292,8 +292,14 @@ function activeActorOwner(actor) {
   return Array.from(game.users ?? []).filter(user => user.active && !user.isGM && actor.testUserPermission(user, "OWNER")).sort((a, b) => a.id.localeCompare(b.id))[0] ?? primaryActiveGm();
 }
 
+function isLimitEligibleCypher(item) {
+  return item?.type === "cypher"
+    && !item.system?.archived
+    && !item.getFlag?.(MODULE_ID, "randomCypher");
+}
+
 function carriedCyphers(actor) {
-  return Array.from(actor?.items ?? []).filter(item => item.type === "cypher" && !item.system?.archived);
+  return Array.from(actor?.items ?? []).filter(isLimitEligibleCypher);
 }
 
 function actorCypherLimit(actor) {
@@ -520,7 +526,7 @@ async function coordinateOverflow(actor) {
 
 function scheduleOverflowCheck(item) {
   const actor = item?.parent;
-  if (item?.type !== "cypher" || actor?.documentName !== "Actor" || actor.type !== "pc") return;
+  if (!isLimitEligibleCypher(item) || actor?.documentName !== "Actor" || actor.type !== "pc") return;
   if (!game.user.isGM || primaryActiveGm()?.id !== game.user.id) return;
   window.clearTimeout(overflowTimers.get(actor.id));
   overflowTimers.set(actor.id, window.setTimeout(() => {
@@ -541,6 +547,7 @@ function scheduleLimitChangeCheck(actor, changes) {
 
 function scheduleArchiveChangeCheck(item, changes) {
   if (item?.type !== "cypher" || !foundry.utils.hasProperty(changes, "system.archived")) return;
+  if (item.getFlag?.(MODULE_ID, "randomCypher")) return;
   scheduleOverflowCheck(item);
 }
 

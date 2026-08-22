@@ -131,7 +131,7 @@ function itemData(entry, category="abilities", context=null) {
       apply: entry.apply ?? null, origin, page: entry.page ?? entry.source?.page ?? null,
       tags: Array.isArray(entry.tags) ? entry.tags : [], effect: entry.effect ?? null,
       explanation: entry.explanation ?? null, explanationPtBr: entry.explanationPtBr ?? null,
-      randomCypher: isCypher
+      randomCypher: Boolean(entry.randomCypher ?? false)
     }}
   }, base, {inplace:false, overwrite:true});
 }

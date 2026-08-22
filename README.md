@@ -317,6 +317,11 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Monitora o limite nativo `system.equipment.cypherLimit` sempre que um cypher entra na ficha.
 - Ao exceder o limite, avisa personagem e Mestres e pede ao dono para descartar cyphers ou confirmar que permanecerá acima do limite.
 
+## v0.15.1
+- Aplica o limite nativo apenas a cyphers manifestos.
+- Cyphers narrativos marcados com `flags.cypher-2-toolkit.randomCypher` continuam como Items distribuíveis, mas não contam para o limite e não aparecem na escolha de descarte.
+- O importador só concede essa isenção quando a entrada JSON declara explicitamente `randomCypher: true`.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
