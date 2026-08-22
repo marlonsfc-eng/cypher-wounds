@@ -130,7 +130,8 @@ function itemData(entry, category="abilities", context=null) {
       useMode: entry.useMode ?? "chat", abilities: Array.isArray(entry.abilities) ? entry.abilities : [],
       apply: entry.apply ?? null, origin, page: entry.page ?? entry.source?.page ?? null,
       tags: Array.isArray(entry.tags) ? entry.tags : [], effect: entry.effect ?? null,
-      explanation: entry.explanation ?? null, randomCypher: isCypher
+      explanation: entry.explanation ?? null, explanationPtBr: entry.explanationPtBr ?? null,
+      randomCypher: isCypher
     }}
   }, base, {inplace:false, overwrite:true});
 }

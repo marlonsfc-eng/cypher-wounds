@@ -1,5 +1,6 @@
 const MODULE_ID = "cypher-2-toolkit";
 const PANEL_ID = "c2t-cypher-opportunities";
+const LAUNCHER_CLASS = "c2t-opportunity-launcher";
 const STATE_SETTING = "cypherOpportunityState";
 const ENABLED_SETTING = "cypherOpportunityAssistant";
 const HISTORY_LIMIT = 18;
@@ -56,6 +57,7 @@ const CATALOG_ROWS = [
 const CATALOG = CATALOG_ROWS.map(([name, page, ...tags]) => ({ name, page, tags }));
 let cypherSources = new Map();
 let hand = [];
+let panelOpen = false;
 let state = { contexts: ["dramatic"], saved: [], history: [], collapsed: false, left: null, top: 120 };
 
 const t = (key, data = {}) => game.i18n.format(`C2T.Opportunities.${key}`, data);
@@ -81,7 +83,7 @@ async function saveState() {
 }
 
 function sourceFromWorldItem(item) {
-  return { name: item.name, img: item.img, uuid: item.uuid, type: item.type, description: item.system?.description ?? item.system?.basic?.description ?? "", explanation: item.getFlag?.(MODULE_ID, "explanation") ?? "", source: "world", document: item };
+  return { name: item.name, img: item.img, uuid: item.uuid, type: item.type, description: item.system?.description ?? item.system?.basic?.description ?? "", explanation: item.getFlag?.(MODULE_ID, "explanation") ?? "", explanationPtBr: item.getFlag?.(MODULE_ID, "explanationPtBr") ?? "", source: "world", document: item };
 }
 
 async function buildSourceIndex() {
@@ -93,11 +95,11 @@ async function buildSourceIndex() {
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Item") continue;
     try {
-      const index = await pack.getIndex({ fields: ["name", "type", "img", "system.description", "system.basic.description", `flags.${MODULE_ID}.explanation`] });
+      const index = await pack.getIndex({ fields: ["name", "type", "img", "system.description", "system.basic.description", `flags.${MODULE_ID}.explanation`, `flags.${MODULE_ID}.explanationPtBr`] });
       for (const entry of index) {
         const key = normalize(entry.name);
         if (!catalogByName.has(key) || found.has(key)) continue;
-        found.set(key, { name: entry.name, img: entry.img, uuid: entry.uuid, type: entry.type, description: entry.system?.description ?? entry.system?.basic?.description ?? "", explanation: foundry.utils.getProperty(entry, `flags.${MODULE_ID}.explanation`) ?? "", source: pack.metadata?.label ?? pack.title ?? pack.collection, pack: pack.collection, id: entry._id ?? entry.id });
+        found.set(key, { name: entry.name, img: entry.img, uuid: entry.uuid, type: entry.type, description: entry.system?.description ?? entry.system?.basic?.description ?? "", explanation: foundry.utils.getProperty(entry, `flags.${MODULE_ID}.explanation`) ?? "", explanationPtBr: foundry.utils.getProperty(entry, `flags.${MODULE_ID}.explanationPtBr`) ?? "", source: pack.metadata?.label ?? pack.title ?? pack.collection, pack: pack.collection, id: entry._id ?? entry.id });
       }
     } catch (error) {
       console.warn(`${MODULE_ID} | Could not index Item pack ${pack.collection}`, error);
@@ -123,7 +125,8 @@ function contextLabel(context) {
 }
 
 function promptFor(entry) {
-  const explanation = cypherSources.get(normalize(entry.name))?.explanation;
+  const source = cypherSources.get(normalize(entry.name));
+  const explanation = source?.explanationPtBr || source?.explanation;
   if (explanation) return escapeHtml(explanation);
   const active = state.contexts.find(context => entry.tags.includes(context)) ?? entry.tags[0] ?? "dramatic";
   return t(`Prompt.${active[0].toUpperCase() + active.slice(1)}`, { cypher: entry.name });
@@ -224,7 +227,7 @@ function panelHtml() {
   return `<section id="${PANEL_ID}" class="c2t-opportunity-panel ${state.collapsed ? "collapsed" : ""}" style="${state.left === null ? "right: 18px;" : `left: ${state.left}px;`} top: ${state.top}px;">
     <header class="c2t-opportunity-header">
       <div><i class="fa-solid fa-wand-sparkles"></i><span>${t("Title")}</span><small>${available}/${CATALOG.length}</small></div>
-      <div class="c2t-opportunity-header-actions"><button type="button" data-panel-action="refresh" title="${t("RefreshCatalog")}"><i class="fa-solid fa-rotate"></i></button><button type="button" data-panel-action="collapse" title="${t("Collapse")}"><i class="fa-solid ${state.collapsed ? "fa-chevron-up" : "fa-chevron-down"}"></i></button></div>
+      <div class="c2t-opportunity-header-actions"><button type="button" data-panel-action="refresh" title="${t("RefreshCatalog")}"><i class="fa-solid fa-rotate"></i></button><button type="button" data-panel-action="collapse" title="${t("Collapse")}"><i class="fa-solid ${state.collapsed ? "fa-chevron-up" : "fa-chevron-down"}"></i></button><button type="button" data-panel-action="close" title="${t("Close")}"><i class="fa-solid fa-xmark"></i></button></div>
     </header>
     <div class="c2t-opportunity-body">
       <p class="c2t-opportunity-intro">${t("Intro")}</p>
@@ -354,6 +357,7 @@ function bindPanel(panel) {
     }
     const panelAction = event.target.closest("[data-panel-action]")?.dataset.panelAction;
     if (panelAction === "collapse") { state.collapsed = !state.collapsed; await saveState(); renderPanel(); return; }
+    if (panelAction === "close") { panelOpen = false; renderPanel(); return; }
     if (panelAction === "draw") { drawNewHand(); return; }
     if (panelAction === "dramatic") { state.contexts = ["dramatic"]; await saveState(); drawNewHand(); return; }
     if (panelAction === "clear-history") { state.history = []; await saveState(); drawNewHand({ rememberCurrent: false }); return; }
@@ -373,7 +377,7 @@ function bindPanel(panel) {
 
 function renderPanel() {
   document.getElementById(PANEL_ID)?.remove();
-  if (!game.user?.isGM || !game.settings.get(MODULE_ID, ENABLED_SETTING)) return;
+  if (!panelOpen || !game.user?.isGM || !game.settings.get(MODULE_ID, ENABLED_SETTING)) return;
   const wrapper = document.createElement("div");
   wrapper.innerHTML = panelHtml();
   const panel = wrapper.firstElementChild;
@@ -382,6 +386,33 @@ function renderPanel() {
   if (state.left !== null) panel.style.left = `${position.left}px`;
   panel.style.top = `${position.top}px`;
   bindPanel(panel);
+}
+
+async function openPanel() {
+  panelOpen = true;
+  await buildSourceIndex();
+  if (!hand.length) hand = weightedSuggestions(HAND_SIZE);
+  renderPanel();
+}
+
+function injectChatLauncher(_app, html) {
+  if (!game.user?.isGM || !game.settings.get(MODULE_ID, ENABLED_SETTING)) return;
+  const root = html?.[0] ?? html;
+  if (!(root instanceof HTMLElement) || root.querySelector(`.${LAUNCHER_CLASS}`)) return;
+  const form = root.matches?.("#chat-form") ? root : root.querySelector("#chat-form");
+  if (!form) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = LAUNCHER_CLASS;
+  button.title = t("OpenAssistant");
+  button.innerHTML = `<i class="fa-solid fa-wand-sparkles"></i><span>${t("Launcher")}</span>`;
+  button.addEventListener("click", openPanel);
+  form.prepend(button);
+}
+
+function refreshChatLaunchers() {
+  const chat = ui.chat?.element;
+  if (chat) injectChatLauncher(ui.chat, chat);
 }
 
 Hooks.once("init", () => {
@@ -394,9 +425,9 @@ Hooks.once("ready", async () => {
   loadState();
   await buildSourceIndex();
   hand = weightedSuggestions(HAND_SIZE);
-  renderPanel();
+  refreshChatLaunchers();
   game.cypher2Toolkit = game.cypher2Toolkit ?? {};
-  game.cypher2Toolkit.opportunities = { open: renderPanel, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand };
+  game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand };
 });
 
 function refreshForStandaloneItem(item) {
@@ -408,7 +439,13 @@ Hooks.on("createItem", refreshForStandaloneItem);
 Hooks.on("updateItem", refreshForStandaloneItem);
 Hooks.on("deleteItem", refreshForStandaloneItem);
 Hooks.on("updateSetting", setting => {
-  if (setting?.key === `${MODULE_ID}.${ENABLED_SETTING}`) renderPanel();
+  if (setting?.key === `${MODULE_ID}.${ENABLED_SETTING}`) {
+    if (!game.settings.get(MODULE_ID, ENABLED_SETTING)) panelOpen = false;
+    document.querySelectorAll(`.${LAUNCHER_CLASS}`).forEach(element => element.remove());
+    refreshChatLaunchers();
+    renderPanel();
+  }
 });
-Hooks.on("canvasReady", () => { if (game.user?.isGM) renderPanel(); });
+Hooks.on("renderChatLog", injectChatLauncher);
+Hooks.on("renderChatPopout", injectChatLauncher);
 

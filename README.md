@@ -285,6 +285,11 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Cria Items nativos do tipo `cypher` em um compêndio próprio e preserva página, tags, efeito e explicação nos flags do Toolkit.
 - O Assistente de Oportunidades passa a usar a explicação específica importada como sugestão narrativa, quando disponível.
 
+## v0.12.0
+- Substitui a abertura permanente do Assistente de Oportunidades por um botão discreto junto ao campo de chat, visível somente para o Mestre.
+- O painel agora pode ser fechado completamente e reaberto pelo botão do chat, mantendo posição, contextos, guardados e histórico.
+- Aceita uma tradução narrativa em `explanationPtBr`, sem traduzir nomes, efeitos mecânicos ou o conteúdo dos Items.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

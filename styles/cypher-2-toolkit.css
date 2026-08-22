@@ -931,7 +931,34 @@
   }
 }
 
-/* v0.11.0 — GM-only contextual assistant for non-manifest cyphers */
+/* v0.12.0 - GM-only contextual assistant for non-manifest cyphers */
+.c2t-opportunity-launcher {
+  align-self: flex-end;
+  width: auto;
+  min-width: 34px;
+  height: 27px;
+  margin: 0 0 5px auto;
+  padding: 0 8px;
+  color: #f3d49e;
+  border: 1px solid rgba(243, 179, 75, .5);
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(99, 58, 24, .86), rgba(39, 31, 32, .94));
+  box-shadow: 0 2px 7px rgba(0, 0, 0, .28);
+  font-size: 11px;
+  line-height: 25px;
+}
+
+.c2t-opportunity-launcher i {
+  margin-right: 5px;
+  color: #f3b34b;
+}
+
+.c2t-opportunity-launcher:hover {
+  color: #fff4d5;
+  border-color: rgba(243, 179, 75, .9);
+  background: rgba(112, 66, 29, .96);
+}
+
 .c2t-opportunity-panel {
   position: fixed;
   z-index: 85;
