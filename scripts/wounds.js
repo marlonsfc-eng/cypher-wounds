@@ -94,13 +94,17 @@ async function getData(actor) {
 }
 
 async function saveData(actor, data) {
+  return saveDataWithUpdates(actor, data);
+}
+
+async function saveDataWithUpdates(actor, data, updates = {}) {
   const clean = normalizeStored(actor, data);
   const stored = {
     modelVersion: MODEL_VERSION,
     baseCapacity: clean.baseCapacity,
     current: clean.current
   };
-  await actor.setFlag(MODULE_ID, "wounds", stored);
+  await actor.update({ ...updates, [`flags.${MODULE_ID}.wounds`]: stored });
   await syncEffect(actor, clean);
   if (isDead(clean) && game.settings.get(MODULE_ID, "markDefeated")) await markTokensDefeated(actor);
   refreshActorTokens(actor);
@@ -507,7 +511,261 @@ function simplifyDamageRecoverySection(app, html) {
   list.addClass("c2t-recovery-only");
 }
 
-Hooks.on("renderActorSheet", (app, html) => simplifyDamageRecoverySection(app, html));
+const recoveryWorkflowLocks = new Set();
+const pendingRecoveryRolls = new Map();
+
+function recoveryText(key, data = {}) {
+  return i18n(`C2T.Recovery.${key}`, data);
+}
+
+function recoveryPoolPath(actor, pool) {
+  const teen = actor.system?.basic?.unmaskedForm === "Teen";
+  return `system.${teen ? "teen.pools" : "pools"}.${pool}.value`;
+}
+
+function healingSkillRating(actor) {
+  const ratings = { Inability: -1, Practiced: 0, Trained: 1, Specialized: 2 };
+  const healingNames = new Set(["healing", "cura"]);
+  const healing = Array.from(actor.items ?? []).filter(item => item.type === "skill" && healingNames.has(String(item.name ?? "").trim().toLocaleLowerCase()));
+  if (!healing.length) return { found: false, rating: 0, label: "Practiced" };
+  const best = healing.reduce((current, item) => {
+    const label = item.system?.basic?.rating ?? "Practiced";
+    return (ratings[label] ?? 0) > current.rating ? { rating: ratings[label] ?? 0, label } : current;
+  }, { rating: -2, label: "Inability" });
+  return { found: true, ...best };
+}
+
+function choiceButton(action, icon, label, detail = "") {
+  return `<button type="button" class="c2t-recovery-choice" data-c2t-recovery-action="${action}">
+    <i class="fa-solid ${icon}"></i><span><strong>${label}</strong>${detail ? `<small>${detail}</small>` : ""}</span>
+  </button>`;
+}
+
+function openRecoveryDialog({ actor, title, intro, table = "", choices, width = 560 }) {
+  const content = `<div class="c2t-recovery-dialog" data-actor-uuid="${actor.uuid}">
+    <div class="c2t-recovery-rule">${intro}</div>${table}
+    <div class="c2t-recovery-choices">${choices.map(choice => choiceButton(choice.action, choice.icon, choice.label, choice.detail)).join("")}</div>
+  </div>`;
+  const dialog = new Dialog({
+    title: `${title}: ${actor.name}`,
+    content,
+    buttons: { close: { label: recoveryText("Close") } },
+    render: html => html.on("click", "[data-c2t-recovery-action]", async event => {
+      event.preventDefault();
+      const button = event.currentTarget;
+      const choice = choices.find(entry => entry.action === button.dataset.c2tRecoveryAction);
+      if (!choice || button.disabled) return;
+      html.find("[data-c2t-recovery-action]").prop("disabled", true);
+      try {
+        const close = await choice.callback();
+        if (close !== false) dialog.close();
+        else html.find("[data-c2t-recovery-action]").prop("disabled", false);
+      } catch (error) {
+        console.error(`${MODULE_ID} | Recovery workflow failed`, error);
+        ui.notifications.error(recoveryText("UnexpectedError"));
+        html.find("[data-c2t-recovery-action]").prop("disabled", false);
+      }
+    })
+  }, { width });
+  dialog.render(true);
+  return dialog;
+}
+
+async function healByPlan(actor, plan, { updates = {}, notice = true } = {}) {
+  const data = await getData(actor);
+  const removed = { minor: 0, moderate: 0, major: 0 };
+  for (const severity of SEVERITIES) {
+    const requested = plan[severity];
+    if (requested === undefined) continue;
+    const amount = requested === "all" ? data.current[severity] : Math.min(data.current[severity], Math.max(0, Number(requested) || 0));
+    data.current[severity] -= amount;
+    removed[severity] = amount;
+  }
+  await saveDataWithUpdates(actor, data, updates);
+  const total = Object.values(removed).reduce((sum, value) => sum + value, 0);
+  if (notice) {
+    const summary = SEVERITIES.filter(severity => removed[severity]).map(severity => `${removed[severity]} ${game.i18n.localize(`CW.${severity[0].toUpperCase() + severity.slice(1)}`)}`).join(", ");
+    ui.notifications.info(total ? recoveryText("HealedSummary", { name: actor.name, summary }) : recoveryText("NoMatchingWound"));
+  }
+  return { data, removed, total };
+}
+
+async function useRally(actor, severity, cost) {
+  const lock = `${actor.uuid}:rally`;
+  if (recoveryWorkflowLocks.has(lock)) return false;
+  recoveryWorkflowLocks.add(lock);
+  try {
+    if (!canEdit(actor)) return ui.notifications.warn(i18n("CW.NoPermission")), false;
+    const wounds = await getData(actor);
+    if (!wounds.current[severity]) return ui.notifications.warn(recoveryText("NoSelectedWound")), false;
+    const path = recoveryPoolPath(actor, "might");
+    const current = Number(foundry.utils.getProperty(actor, path) ?? 0);
+    if (current < cost) return ui.notifications.warn(recoveryText("NotEnoughMight", { cost, current })), false;
+    wounds.current[severity]--;
+    await saveDataWithUpdates(actor, wounds, { [path]: current - cost });
+    ui.notifications.info(recoveryText("RallyComplete", { cost }));
+    await announce(actor, "CW.ChatHeals", severity);
+    return true;
+  } finally {
+    recoveryWorkflowLocks.delete(lock);
+  }
+}
+
+function useEffectiveDifficulty(baseDifficulty) {
+  const setting = Number(game.settings.get("cyphersystem", "effectiveDifficulty"));
+  return setting === 1 || (setting === 2 && Number(baseDifficulty) === -1);
+}
+
+function rollSucceeded(data) {
+  if (useEffectiveDifficulty(data.baseDifficulty)) return Number(data.difficulty) + Number(data.difficultyModifierTotal) >= Number(data.finalDifficulty);
+  return Number(data.difficulty) >= Number(data.finalDifficulty);
+}
+
+async function launchHealingTask(actor, { severity, difficulty, pool, skillLevel = 0, title }) {
+  if (!canEdit(actor)) return ui.notifications.warn(i18n("CW.NoPermission")), false;
+  const wounds = await getData(actor);
+  if (!wounds.current[severity]) return ui.notifications.warn(recoveryText("NoSelectedWound")), false;
+  const id = foundry.utils.randomID();
+  pendingRecoveryRolls.set(id, { actorUuid: actor.uuid, severity });
+  window.setTimeout(() => pendingRecoveryRolls.delete(id), 10 * 60 * 1000);
+  const markerTitle = `<span data-c2t-recovery-roll="${id}">${title}</span>`;
+  const { rollEngineMain } = await import("/systems/cyphersystem/module/utilities/roll-engine/roll-engine-main.js");
+  await rollEngineMain({ actorUuid: actor.uuid, title: markerTitle, baseDifficulty: difficulty, pool, skillLevel, skipDialog: false });
+  return true;
+}
+
+Hooks.on("rollEngine", async (actor, data) => {
+  const match = String(data?.title ?? "").match(/data-c2t-recovery-roll=["']([^"']+)["']/);
+  if (!match) return;
+  const pending = pendingRecoveryRolls.get(match[1]);
+  if (!pending || pending.actorUuid !== actor?.uuid) return;
+  pendingRecoveryRolls.delete(match[1]);
+  if (!rollSucceeded(data)) return ui.notifications.warn(recoveryText("TreatmentFailed"));
+  const result = await healByPlan(actor, { [pending.severity]: 1 });
+  if (result.total) await announce(actor, "CW.ChatHeals", pending.severity);
+});
+
+function openRallyDialog(actor) {
+  const table = `<div class="c2t-recovery-table"><span>${recoveryText("Severity")}</span><span>${recoveryText("Cost")}</span><span>${recoveryText("Time")}</span><strong>${recoveryText("Minor")}</strong><span>2 ${recoveryText("MightPoints")}</span><span>${recoveryText("OneAction")}</span><strong>${recoveryText("Moderate")}</strong><span>5 ${recoveryText("MightPoints")}</span><span>${recoveryText("OneAction")}</span></div>`;
+  return openRecoveryDialog({ actor, title: recoveryText("Rallying"), intro: `<p>${recoveryText("RallyIntro")}</p><p class="c2t-recovery-note"><i class="fa-solid fa-circle-info"></i> ${recoveryText("RallyEdge")}</p>`, table, choices: [
+    { action: "minor", icon: "fa-bandage", label: recoveryText("HealMinor"), detail: recoveryText("SpendMight", { cost: 2 }), callback: () => useRally(actor, "minor", 2) },
+    { action: "moderate", icon: "fa-kit-medical", label: recoveryText("HealModerate"), detail: recoveryText("SpendMight", { cost: 5 }), callback: () => useRally(actor, "moderate", 5) }
+  ] });
+}
+
+function openTreatmentDialog(actor) {
+  const healingSkill = healingSkillRating(actor);
+  const skillLevel = healingSkill.rating;
+  const skillLabel = healingSkill.found ? recoveryText("HealingPrefilled", { level: game.i18n.localize(`CYPHERSYSTEM.${healingSkill.label}`) }) : recoveryText("HealingNotFound");
+  const table = `<div class="c2t-recovery-table"><span>${recoveryText("Treatment")}</span><span>${recoveryText("Difficulty")}</span><span>${recoveryText("Time")}</span><strong>${recoveryText("Minor")}</strong><span>0</span><span>${recoveryText("TenMinutes")}</span><strong>${recoveryText("Moderate")}</strong><span>3</span><span>${recoveryText("OneHour")}</span><strong>${recoveryText("Major")}</strong><span>6</span><span>${recoveryText("OneWeek")}</span></div>`;
+  return openRecoveryDialog({ actor, title: recoveryText("Treatment"), intro: `<p>${recoveryText("TreatmentIntro")}</p><p class="c2t-recovery-note"><i class="fa-solid fa-stethoscope"></i> ${skillLabel}</p>`, table, choices: [
+    { action: "minor", icon: "fa-bandage", label: recoveryText("TreatMinor"), detail: recoveryText("RoutineTask"), callback: async () => { const result = await healByPlan(actor, { minor: 1 }); if (result.total) await announce(actor, "CW.ChatHeals", "minor"); return result.total > 0; } },
+    { action: "moderate", icon: "fa-kit-medical", label: recoveryText("TreatModerate"), detail: recoveryText("IntellectDifficulty", { difficulty: 3 }), callback: () => launchHealingTask(actor, { severity: "moderate", difficulty: 3, pool: "Intellect", skillLevel, title: recoveryText("TreatmentRollModerate") }) },
+    { action: "major", icon: "fa-user-doctor", label: recoveryText("TreatMajor"), detail: recoveryText("IntellectDifficulty", { difficulty: 6 }), callback: () => launchHealingTask(actor, { severity: "major", difficulty: 6, pool: "Intellect", skillLevel, title: recoveryText("TreatmentRollMajor") }) }
+  ] });
+}
+
+function recoveryKeys(actor, type) {
+  if (type === "oneAction") {
+    const count = Math.max(1, Number(actor.system?.settings?.combat?.numberOneActionRecoveries ?? 1));
+    return Array.from({ length: Math.min(count, 7) }, (_, index) => `oneAction${index ? index + 1 : ""}`);
+  }
+  if (type === "tenMinutes") {
+    const count = Math.max(1, Number(actor.system?.settings?.combat?.numberTenMinuteRecoveries ?? 1));
+    return Array.from({ length: Math.min(count, 2) }, (_, index) => `tenMinutes${index ? index + 1 : ""}`);
+  }
+  return [type];
+}
+
+function nextRecoveryKey(actor, type) {
+  return recoveryKeys(actor, type).find(key => !actor.system?.combat?.recoveries?.[key]);
+}
+
+async function rollNativeRecovery(actor, bonus = 0) {
+  const dice = `${actor.system?.combat?.recoveries?.roll || "1d6"}${bonus ? `+${bonus}` : ""}`;
+  const { recoveryRollMacro } = await import("/systems/cyphersystem/module/macros/macros.js");
+  await recoveryRollMacro(actor, dice, false);
+}
+
+async function performRecovery(actor, type, plan = {}, { bonus = 0, label } = {}) {
+  const lock = `${actor.uuid}:recovery`;
+  if (recoveryWorkflowLocks.has(lock)) return false;
+  recoveryWorkflowLocks.add(lock);
+  try {
+    if (!canEdit(actor)) return ui.notifications.warn(i18n("CW.NoPermission")), false;
+    const key = nextRecoveryKey(actor, type);
+    if (!key) return ui.notifications.warn(recoveryText("RecoveryAlreadyUsed", { recovery: label })), false;
+    const result = await healByPlan(actor, plan, { updates: { [`system.combat.recoveries.${key}`]: true } });
+    await rollNativeRecovery(actor, bonus);
+    ui.notifications.info(recoveryText("RecoveryComplete", { recovery: label }));
+    return { ...result, key };
+  } finally {
+    recoveryWorkflowLocks.delete(lock);
+  }
+}
+
+function openOneHourDialog(actor) {
+  return openRecoveryDialog({ actor, title: recoveryText("OneHourRecovery"), intro: `<p>${recoveryText("OneHourChoice")}</p>`, choices: [
+    { action: "moderate", icon: "fa-kit-medical", label: recoveryText("RemoveOneModerate"), callback: () => performRecovery(actor, "oneHour", { moderate: 1 }, { label: recoveryText("OneHour") }) },
+    { action: "minor", icon: "fa-bandage", label: recoveryText("RemoveAllMinor"), callback: () => performRecovery(actor, "oneHour", { minor: "all" }, { label: recoveryText("OneHour") }) }
+  ] });
+}
+
+function openMajorRecoveryAttempt(actor) {
+  getData(actor).then(wounds => {
+    if (!wounds.current.major) return;
+    openRecoveryDialog({ actor, title: recoveryText("MajorRecoveryAttempt"), intro: `<p>${recoveryText("MajorRecoveryIntro")}</p>`, choices: [
+      { action: "major", icon: "fa-dice-d20", label: recoveryText("AttemptMajor"), detail: recoveryText("MightDifficulty", { difficulty: 6 }), callback: () => launchHealingTask(actor, { severity: "major", difficulty: 6, pool: "Might", title: recoveryText("MajorRecoveryRoll") }) }
+    ], width: 480 });
+  });
+}
+
+function openTenHourDialog(actor) {
+  return openRecoveryDialog({ actor, title: recoveryText("TenHourRecovery"), intro: `<p>${recoveryText("TenHourChoice")}</p><p class="c2t-recovery-note"><i class="fa-solid fa-circle-info"></i> ${recoveryText("TenHourMajorNote")}</p>`, choices: [
+    { action: "moderate", icon: "fa-kit-medical", label: recoveryText("RemoveAllModerate"), callback: async () => { const result = await performRecovery(actor, "tenHours", { moderate: "all" }, { label: recoveryText("TenHours") }); if (result) openMajorRecoveryAttempt(actor); return Boolean(result); } },
+    { action: "alternative", icon: "fa-bandage", label: recoveryText("TenHourAlternative"), detail: recoveryText("TenHourAlternativeDetail"), callback: async () => { const wounds = await getData(actor); const result = await performRecovery(actor, "tenHours", { moderate: Math.max(0, wounds.current.moderate - 1), minor: "all" }, { label: recoveryText("TenHours") }); if (result) openMajorRecoveryAttempt(actor); return Boolean(result); } }
+  ] });
+}
+
+function openFullRecoveryDialog(actor) {
+  const table = `<div class="c2t-recovery-table c2t-recovery-table-wide"><span>${recoveryText("RecoveryTime")}</span><span>${recoveryText("PoolPoints")}</span><span>${recoveryText("Effects")}</span><strong>${recoveryText("OneAction")}</strong><span>1d6 + ${recoveryText("Tier")}</span><span>${recoveryText("LastActionEffect")}</span><strong>${recoveryText("TenMinutes")}</strong><span>1d6 + ${recoveryText("Tier")}</span><span>${recoveryText("TenMinuteEffect")}</span><strong>${recoveryText("OneHour")}</strong><span>1d6 + ${recoveryText("Tier")}</span><span>${recoveryText("OneHourEffect")}</span><strong>${recoveryText("TenHours")}</strong><span>1d6 + ${recoveryText("Tier")}</span><span>${recoveryText("TenHourEffect")}</span></div>`;
+  return openRecoveryDialog({ actor, title: recoveryText("Recovery"), intro: `<p>${recoveryText("RecoveryIntro")}</p><p>${recoveryText("RecoveryPools")}</p>`, table, choices: [
+    { action: "action", icon: "fa-bolt", label: recoveryText("UseOneAction"), callback: () => performRecovery(actor, "oneAction", {}, { label: recoveryText("OneAction") }) },
+    { action: "last-action", icon: "fa-heart-pulse", label: recoveryText("UseLastAction"), detail: recoveryText("PlusTwo"), callback: () => performRecovery(actor, "oneAction", {}, { bonus: 2, label: recoveryText("LastAction") }) },
+    { action: "ten-minutes", icon: "fa-clock", label: recoveryText("UseTenMinutes"), detail: recoveryText("RemoveAllMinor"), callback: () => performRecovery(actor, "tenMinutes", { minor: "all" }, { label: recoveryText("TenMinutes") }) },
+    { action: "one-hour", icon: "fa-hourglass-half", label: recoveryText("UseOneHour"), detail: recoveryText("ChooseWoundEffect"), callback: async () => { openOneHourDialog(actor); return true; } },
+    { action: "ten-hours", icon: "fa-bed", label: recoveryText("UseTenHours"), detail: recoveryText("ChooseWoundEffect"), callback: async () => { openTenHourDialog(actor); return true; } }
+  ], width: 650 });
+}
+
+function injectRecoveryWorkflows(app, html) {
+  const actor = app?.actor;
+  if (!actor || actor.type !== "pc") return;
+  const root = html?.find ? html : $(html);
+  root.find(".c2t-recovery-workflows").remove();
+  const list = root.find("ol.c2t-recovery-only").first();
+  if (!list.length) return;
+  const disabled = canEdit(actor) ? "" : "disabled";
+  const row = $(`<li class="item c2t-recovery-workflows">
+    <button type="button" data-c2t-workflow="rally" ${disabled}><i class="fa-solid fa-person-running"></i> ${recoveryText("Rallying")}</button>
+    <button type="button" data-c2t-workflow="treatment" ${disabled}><i class="fa-solid fa-user-doctor"></i> ${recoveryText("Treatment")}</button>
+    <button type="button" data-c2t-workflow="recovery" ${disabled}><i class="fa-solid fa-heart-pulse"></i> ${recoveryText("Recovery")}</button>
+  </li>`);
+  row.on("click", "[data-c2t-workflow]", event => {
+    event.preventDefault();
+    if (event.currentTarget.disabled) return;
+    const action = event.currentTarget.dataset.c2tWorkflow;
+    if (action === "rally") openRallyDialog(actor);
+    if (action === "treatment") openTreatmentDialog(actor);
+    if (action === "recovery") openFullRecoveryDialog(actor);
+  });
+  list.append(row);
+}
+
+Hooks.on("renderActorSheet", (app, html) => {
+  simplifyDamageRecoverySection(app, html);
+  injectRecoveryWorkflows(app, html);
+});
 
 Hooks.on("renderTokenHUD", async (hud, html, data) => {
   if (!game.settings.get(MODULE_ID, "tokenHUD")) return;
@@ -898,5 +1156,6 @@ Hooks.on("updateActor", actor => {
 Hooks.on("createItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
 Hooks.on("deleteItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
 Hooks.on("updateItem", item => { if (item.parent?.documentName === "Actor") { refreshActorTokens(item.parent); refreshUniversalApplicator(); } });
+
 
 

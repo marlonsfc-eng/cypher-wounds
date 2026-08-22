@@ -728,4 +728,120 @@
   border-top: 0;
 }
 
+.cyphersystem.sheet.actor.pc .c2t-recovery-workflows {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 7px 10px 9px;
+  border-top: 1px solid var(--color-border-light-2, #b5b3a4) !important;
+}
+
+.cyphersystem.sheet.actor.pc .c2t-recovery-workflows button {
+  min-height: 30px;
+  margin: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.cyphersystem.sheet.actor.pc .c2t-recovery-workflows button i {
+  margin-right: 4px;
+}
+
+.c2t-recovery-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.c2t-recovery-dialog p {
+  margin: 0 0 8px;
+  line-height: 1.45;
+}
+
+.c2t-recovery-note {
+  padding: 8px 10px;
+  border-left: 3px solid var(--color-border-highlight, #ff6400);
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.c2t-recovery-table {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.15fr) minmax(105px, 1fr) minmax(115px, 1fr);
+  border: 1px solid var(--color-border-light-2, #9f9275);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.c2t-recovery-table > * {
+  padding: 6px 8px;
+  border-right: 1px solid var(--color-border-light-2, #9f9275);
+  border-bottom: 1px solid var(--color-border-light-2, #9f9275);
+  line-height: 1.25;
+}
+
+.c2t-recovery-table > :nth-child(-n+3) {
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.c2t-recovery-table > :nth-child(3n) {
+  border-right: 0;
+}
+
+.c2t-recovery-table > :nth-last-child(-n+3) {
+  border-bottom: 0;
+}
+
+.c2t-recovery-table-wide {
+  grid-template-columns: minmax(105px, .9fr) minmax(105px, .9fr) minmax(210px, 2fr);
+  font-size: 12px;
+}
+
+.c2t-recovery-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.c2t-recovery-choice {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: center;
+  gap: 7px;
+  min-height: 46px;
+  height: auto;
+  margin: 0;
+  padding: 7px 9px;
+  text-align: left;
+  line-height: 1.2;
+}
+
+.c2t-recovery-choice > i {
+  text-align: center;
+  font-size: 15px;
+}
+
+.c2t-recovery-choice span {
+  min-width: 0;
+}
+
+.c2t-recovery-choice strong,
+.c2t-recovery-choice small {
+  display: block;
+}
+
+.c2t-recovery-choice small {
+  margin-top: 3px;
+  opacity: .8;
+  white-space: normal;
+}
+
+@media (max-width: 640px) {
+  .c2t-recovery-choices,
+  .cyphersystem.sheet.actor.pc .c2t-recovery-workflows {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 

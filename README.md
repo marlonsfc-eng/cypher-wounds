@@ -259,6 +259,13 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Evita mensagens duplicadas quando há mais de um Mestre conectado.
 - Permite desativar separadamente a exibição no painel e os avisos privados nas configurações do módulo.
 
+## v0.10.0
+- Adiciona os botões Rallying, Treatment e Recovery diretamente à seção Recovery da ficha de PC.
+- Rallying valida e gasta Potência sem aplicar Edge, removendo automaticamente o wound escolhido.
+- Treatment usa a Roll Engine nativa, preenche a skill Healing e só remove o wound após sucesso.
+- Recovery consome exatamente a opção escolhida, mantém a rolagem nativa e automatiza os efeitos sobre wounds.
+- Inclui Last Action +2 e as escolhas de uma hora e dez horas, incluindo o teste adicional de Potência para Major Wound.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
@@ -268,5 +275,6 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Mantém os controles de wounds exclusivos para personagens de jogador.
 - Permite mover, minimizar e restaurar o painel mesmo quando nenhum token está selecionado.
 - Amplia os avisos privados do Mestre para recursos monitorados de NPCs e outros atores compatíveis.
+
 
 
