@@ -271,6 +271,13 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Permite alocar o resultado entre Potência, Velocidade e Intelecto sem ultrapassar o total rolado ou o máximo de cada Reserva.
 - Exibe os pontos distribuídos e restantes em tempo real e aplica todas as alterações em uma única atualização da ficha.
 
+## v0.11.0
+- Adiciona um Assistente de Oportunidades de Cypher visível somente para Mestres.
+- Classifica a tabela de cyphers não manifestos por contexto e apresenta três sugestões ponderadas para a cena.
+- Mantém guardados, histórico antirrepetição e posição/minimização do painel por cliente.
+- Localiza Items correspondentes no mundo e em compêndios sem duplicar suas descrições no módulo.
+- Permite lembrar o Mestre, adicionar o Item à ficha, enviar em segredo aos donos do personagem ou publicar a oportunidade no chat.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

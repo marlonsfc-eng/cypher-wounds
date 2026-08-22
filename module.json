@@ -2,7 +2,7 @@
   "id": "cypher-2-toolkit",
   "title": "Cypher 2 Toolkit",
   "description": "Ferimentos do Cypher 2, special rolls, acompanhamento discreto de recursos e importador privado de conteúdo.",
-  "version": "0.10.1",
+  "version": "0.11.0",
   "authors": [
     {
       "name": "Marlon Campos"
@@ -16,7 +16,8 @@
   ],
   "esmodules": [
     "scripts/main.js",
-    "scripts/wounds.js"
+    "scripts/wounds.js",
+    "scripts/cypher-opportunities.js"
   ],
   "styles": [
     "styles/cypher-2-toolkit.css"
