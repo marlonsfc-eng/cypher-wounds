@@ -398,8 +398,12 @@ async function openPanel() {
 function injectChatLauncher(_app, html) {
   if (!game.user?.isGM || !game.settings.get(MODULE_ID, ENABLED_SETTING)) return;
   const root = html?.[0] ?? html;
-  if (!(root instanceof HTMLElement) || root.querySelector(`.${LAUNCHER_CLASS}`)) return;
-  const form = root.matches?.("#chat-form") ? root : root.querySelector("#chat-form");
+  if (document.querySelector(`.${LAUNCHER_CLASS}`)) return;
+  const localForm = root instanceof HTMLElement
+    ? (root.matches?.("#chat-form") ? root : root.querySelector("#chat-form"))
+    : null;
+  const message = document.querySelector("#chat-message, textarea[name='message'], textarea[data-action='send-message']");
+  const form = localForm ?? document.querySelector("#chat-form") ?? message?.closest("form");
   if (!form) return;
   const button = document.createElement("button");
   button.type = "button";
@@ -407,12 +411,19 @@ function injectChatLauncher(_app, html) {
   button.title = t("OpenAssistant");
   button.innerHTML = `<i class="fa-solid fa-wand-sparkles"></i><span>${t("Launcher")}</span>`;
   button.addEventListener("click", openPanel);
-  form.prepend(button);
+  form.parentElement?.insertBefore(button, form);
 }
 
 function refreshChatLaunchers() {
   const chat = ui.chat?.element;
   if (chat) injectChatLauncher(ui.chat, chat);
+  else injectChatLauncher(null, document.body);
+}
+
+function scheduleChatLauncher() {
+  refreshChatLaunchers();
+  window.setTimeout(refreshChatLaunchers, 100);
+  window.setTimeout(refreshChatLaunchers, 500);
 }
 
 Hooks.once("init", () => {
@@ -425,7 +436,7 @@ Hooks.once("ready", async () => {
   loadState();
   await buildSourceIndex();
   hand = weightedSuggestions(HAND_SIZE);
-  refreshChatLaunchers();
+  scheduleChatLauncher();
   game.cypher2Toolkit = game.cypher2Toolkit ?? {};
   game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand };
 });
@@ -446,6 +457,7 @@ Hooks.on("updateSetting", setting => {
     renderPanel();
   }
 });
-Hooks.on("renderChatLog", injectChatLauncher);
-Hooks.on("renderChatPopout", injectChatLauncher);
+Hooks.on("renderChatLog", (_app, html) => { injectChatLauncher(_app, html); scheduleChatLauncher(); });
+Hooks.on("renderChatPopout", (_app, html) => { injectChatLauncher(_app, html); scheduleChatLauncher(); });
+Hooks.on("renderSidebar", scheduleChatLauncher);
 

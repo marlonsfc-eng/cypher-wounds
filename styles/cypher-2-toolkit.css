@@ -933,11 +933,11 @@
 
 /* v0.12.0 - GM-only contextual assistant for non-manifest cyphers */
 .c2t-opportunity-launcher {
-  align-self: flex-end;
-  width: auto;
+  display: block;
+  width: calc(100% - 8px);
   min-width: 34px;
   height: 27px;
-  margin: 0 0 5px auto;
+  margin: 4px;
   padding: 0 8px;
   color: #f3d49e;
   border: 1px solid rgba(243, 179, 75, .5);

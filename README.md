@@ -290,6 +290,10 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - O painel agora pode ser fechado completamente e reaberto pelo botão do chat, mantendo posição, contextos, guardados e histórico.
 - Aceita uma tradução narrativa em `explanationPtBr`, sem traduzir nomes, efeitos mecânicos ou o conteúdo dos Items.
 
+## v0.12.1
+- Corrige a inserção do botão do Assistente de Oportunidades no chat do Foundry VTT 13.
+- Localiza o formulário de mensagem na interface completa e tenta novamente após o sidebar terminar de renderizar.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
