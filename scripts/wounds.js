@@ -1195,6 +1195,9 @@ function makeUniversalWoundApplicator() {
       <header class="c2t-applicator-header">
         <span><i class="fa-solid fa-heart-crack"></i> ${game.i18n.localize("C2T.Resources.PanelTitle")}</span>
         <div class="c2t-applicator-header-actions">
+          ${game.user.isGM && game.settings.get(MODULE_ID, "cypherOpportunityAssistant") ? `<button type="button" class="c2t-open-opportunities" title="${game.i18n.localize("C2T.Opportunities.OpenAssistant")}">
+            <i class="fa-solid fa-wand-sparkles"></i>
+          </button>` : ""}
           ${game.user.isGM ? `<button type="button" class="c2t-random-pc" title="${game.i18n.localize("C2T.RandomPC.ButtonHint")}">
             <i class="fa-solid fa-dice"></i>
           </button>` : ""}
@@ -1225,6 +1228,13 @@ function makeUniversalWoundApplicator() {
   }
 
   panel.find(".c2t-random-pc").on("click", handleRandomPc);
+  panel.find(".c2t-open-opportunities").on("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    const assistant = game.cypher2Toolkit?.opportunities;
+    if (assistant?.open) assistant.open();
+    else ui.notifications.warn(game.i18n.localize("C2T.Opportunities.Unavailable"));
+  });
 
   panel.find(".c2t-applicator-reset-size").on("click", event => {
     event.preventDefault();

@@ -274,6 +274,7 @@
   gap: 2px;
 }
 
+.c2t-open-opportunities,
 .c2t-random-pc,
 .c2t-applicator-reset-size,
 .c2t-applicator-collapse {
@@ -932,36 +933,7 @@
   }
 }
 
-/* v0.12.0 - GM-only contextual assistant for non-manifest cyphers */
-.c2t-opportunity-launcher {
-  display: block;
-  position: fixed;
-  z-index: 101;
-  width: 200px;
-  min-width: 34px;
-  height: 27px;
-  margin: 0;
-  padding: 0 8px;
-  color: #f3d49e;
-  border: 1px solid rgba(243, 179, 75, .5);
-  border-radius: 5px;
-  background: linear-gradient(90deg, rgba(99, 58, 24, .86), rgba(39, 31, 32, .94));
-  box-shadow: 0 2px 7px rgba(0, 0, 0, .28);
-  font-size: 11px;
-  line-height: 25px;
-}
-
-.c2t-opportunity-launcher i {
-  margin-right: 5px;
-  color: #f3b34b;
-}
-
-.c2t-opportunity-launcher:hover {
-  color: #fff4d5;
-  border-color: rgba(243, 179, 75, .9);
-  background: rgba(112, 66, 29, .96);
-}
-
+/* GM-only contextual assistant for non-manifest cyphers */
 .c2t-opportunity-panel {
   position: fixed;
   z-index: 85;
@@ -1338,6 +1310,70 @@
 }
 
 .c2t-random-pc-chat h3 {
+  margin: 0 0 5px;
+}
+
+.c2t-open-opportunities {
+  color: #f3b34b;
+}
+
+.c2t-cypher-offer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.c2t-cypher-offer-actions button {
+  min-height: 30px;
+  margin: 0;
+}
+
+.c2t-cypher-offer-actions button[data-c2t-offer-action="accept"] {
+  color: #246b37;
+}
+
+.c2t-cypher-offer-actions button[data-c2t-offer-action="reject"] {
+  color: #8b2635;
+}
+
+.c2t-cypher-limit-form > p {
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.c2t-cypher-limit-form > div {
+  display: grid;
+  gap: 5px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.c2t-cypher-limit-choice {
+  display: grid;
+  grid-template-columns: 20px 36px 1fr;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 3px 7px;
+  border: 1px solid rgba(0, 0, 0, .16);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .04);
+}
+
+.c2t-cypher-limit-choice input {
+  margin: 0;
+}
+
+.c2t-cypher-limit-choice img {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border: 0;
+  border-radius: 3px;
+}
+
+.c2t-cypher-limit-chat h3 {
   margin: 0 0 5px;
 }
 

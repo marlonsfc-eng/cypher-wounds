@@ -310,6 +310,13 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Remove a linha redundante de alvo e a barra inferior de aplicação e cura.
 - Ajusta automaticamente a altura do painel e mantém apenas o redimensionamento horizontal.
 
+## v0.15.0
+- Move o acesso ao Assistente de Oportunidades do chat para o cabeçalho de Wounds & Resources, ao lado do sorteio de personagem.
+- Ofertas privadas ou públicas agora permitem que o dono do personagem aceite ou recuse; aceitar adiciona o cypher automaticamente à ficha.
+- Entregas diretas enviam uma confirmação aos donos do personagem e aos Mestres.
+- Monitora o limite nativo `system.equipment.cypherLimit` sempre que um cypher entra na ficha.
+- Ao exceder o limite, avisa personagem e Mestres e pede ao dono para descartar cyphers ou confirmar que permanecerá acima do limite.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

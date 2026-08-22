@@ -1,10 +1,11 @@
 const MODULE_ID = "cypher-2-toolkit";
 const PANEL_ID = "c2t-cypher-opportunities";
-const LAUNCHER_CLASS = "c2t-opportunity-launcher";
 const STATE_SETTING = "cypherOpportunityState";
 const ENABLED_SETTING = "cypherOpportunityAssistant";
 const HISTORY_LIMIT = 18;
 const HAND_SIZE = 3;
+const SOCKET_CHANNEL = `module.${MODULE_ID}`;
+const OFFER_FLAG = "cypherOffer";
 
 const CONTEXTS = ["combat", "defense", "social", "stealth", "exploration", "chase", "recovery", "knowledge", "survival", "dramatic"];
 
@@ -58,6 +59,8 @@ const CATALOG = CATALOG_ROWS.map(([name, page, ...tags]) => ({ name, page, tags 
 let cypherSources = new Map();
 let hand = [];
 let panelOpen = false;
+const overflowTimers = new Map();
+const openOverflowDialogs = new Set();
 let state = { contexts: ["dramatic"], saved: [], history: [], collapsed: false, left: null, top: 120 };
 
 const t = (key, data = {}) => game.i18n.format(`C2T.Opportunities.${key}`, data);
@@ -277,9 +280,31 @@ function actorOptions() {
   return Array.from(game.actors ?? []).filter(actor => actor.type === "pc" && (actor.hasPlayerOwner || game.user.isGM)).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function offerChatContent(entry, actor, item, prompt) {
+function primaryActiveGm() {
+  return Array.from(game.users ?? []).filter(user => user.active && user.isGM).sort((a, b) => a.id.localeCompare(b.id))[0] ?? null;
+}
+
+function actorAudience(actor) {
+  return Array.from(game.users ?? []).filter(user => user.isGM || actor.testUserPermission(user, "OWNER")).map(user => user.id);
+}
+
+function activeActorOwner(actor) {
+  return Array.from(game.users ?? []).filter(user => user.active && !user.isGM && actor.testUserPermission(user, "OWNER")).sort((a, b) => a.id.localeCompare(b.id))[0] ?? primaryActiveGm();
+}
+
+function carriedCyphers(actor) {
+  return Array.from(actor?.items ?? []).filter(item => item.type === "cypher" && !item.system?.archived);
+}
+
+function actorCypherLimit(actor) {
+  const limit = Number(actor?.system?.equipment?.cypherLimit);
+  return Number.isFinite(limit) ? Math.max(0, limit) : 0;
+}
+
+function offerChatContent(entry, actor, item, prompt, interactive = false) {
   const link = item?.uuid ? `@UUID[${item.uuid}]{${entry.name}}` : `<strong>${entry.name}</strong>`;
-  return `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-wand-sparkles"></i> ${t("ChatTitle")}</h3><p>${t("ChatOffer", { actor: actor.name, cypher: link })}</p><p><em>${prompt}</em></p></div>`;
+  const actions = interactive ? `<div class="c2t-cypher-offer-actions"><button type="button" data-c2t-offer-action="accept"><i class="fa-solid fa-check"></i> ${t("Accept")}</button><button type="button" data-c2t-offer-action="reject"><i class="fa-solid fa-xmark"></i> ${t("Reject")}</button></div>` : "";
+  return `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-wand-sparkles"></i> ${t("ChatTitle")}</h3><p>${t("ChatOffer", { actor: actor.name, cypher: link })}</p><p><em>${prompt}</em></p>${actions}</div>`;
 }
 
 async function cloneItemToActor(item, actor) {
@@ -289,7 +314,24 @@ async function cloneItemToActor(item, actor) {
   delete data.sort;
   delete data.ownership;
   delete data._stats;
-  await actor.createEmbeddedDocuments("Item", [data]);
+  const created = await actor.createEmbeddedDocuments("Item", [data]);
+  return created[0] ?? null;
+}
+
+async function sendDirectDeliveryNotice(actor, item) {
+  const link = item?.uuid ? `@UUID[${item.uuid}]{${item.name}}` : `<strong>${item.name}</strong>`;
+  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-gift"></i> ${t("ReceivedTitle")}</h3><p>${t("ReceivedDirect", {actor: actor.name, cypher: link})}</p></div>`, {async: true});
+  await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content, whisper: actorAudience(actor)});
+}
+
+async function createInteractiveOffer(entry, actor, item, prompt, mode) {
+  const content = await TextEditor.enrichHTML(offerChatContent(entry, actor, item, prompt, true), {async: true});
+  const data = {
+    speaker: ChatMessage.getSpeaker(), content,
+    flags: {[MODULE_ID]: {[OFFER_FLAG]: {actorId: actor.id, itemUuid: item.uuid, itemName: entry.name, prompt, status: "pending"}}}
+  };
+  if (mode === "whisper") data.whisper = actorAudience(actor);
+  await ChatMessage.create(data);
 }
 
 async function executeOffer(entry, html) {
@@ -300,15 +342,11 @@ async function executeOffer(entry, html) {
   if (!item) return ui.notifications.warn(t("ItemNotFound")), false;
   const prompt = promptFor(entry);
   if (mode === "add") {
-    await cloneItemToActor(item, actor);
+    const created = await cloneItemToActor(item, actor);
+    await sendDirectDeliveryNotice(actor, created ?? item);
     ui.notifications.info(t("Added", { cypher: entry.name, actor: actor.name }));
   } else if (mode === "whisper" || mode === "public") {
-    const content = await TextEditor.enrichHTML(offerChatContent(entry, actor, item, prompt), { async: true });
-    const message = { speaker: ChatMessage.getSpeaker({ actor }), content };
-    if (mode === "whisper") {
-      message.whisper = game.users.filter(user => user.isGM || actor.testUserPermission(user, "OWNER")).map(user => user.id);
-    }
-    await ChatMessage.create(message);
+    await createInteractiveOffer(entry, actor, item, prompt, mode);
   } else {
     ui.notifications.info(t("Reminder", { actor: actor.name, cypher: entry.name }));
   }
@@ -335,6 +373,182 @@ function openOfferDialog(entry) {
     cancel: { label: t("Cancel") }
   } }, { width: 470 });
   dialog.render(true);
+}
+
+async function updateOfferMessage(message, offer, actor, item, status, responder) {
+  const link = item?.uuid ? `@UUID[${item.uuid}]{${item.name}}` : `<strong>${offer.itemName}</strong>`;
+  const key = status === "accepted" ? "OfferAccepted" : "OfferRejected";
+  const icon = status === "accepted" ? "fa-circle-check" : "fa-circle-xmark";
+  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat resolved ${status}"><h3><i class="fa-solid ${icon}"></i> ${t("ChatTitle")}</h3><p>${t(key, {actor: actor.name, cypher: link, user: responder.name})}</p></div>`, {async: true});
+  await message.update({content, [`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: status});
+}
+
+async function handleOfferDecision(payload) {
+  if (!game.user.isGM) return;
+  const message = game.messages.get(payload.messageId);
+  const offer = message?.getFlag(MODULE_ID, OFFER_FLAG);
+  const actor = game.actors.get(offer?.actorId);
+  const responder = game.users.get(payload.userId);
+  if (!message || !offer || offer.status !== "pending" || !actor || !responder) return;
+  if (!responder.isGM && !actor.testUserPermission(responder, "OWNER")) return;
+  if (payload.decision === "reject") {
+    await updateOfferMessage(message, offer, actor, null, "rejected", responder);
+    return;
+  }
+  if (payload.decision !== "accept") return;
+  await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "processing"});
+  try {
+    const source = await fromUuid(offer.itemUuid);
+    if (!source || source.documentName !== "Item") throw new Error(t("ItemNotFound"));
+    const created = await cloneItemToActor(source, actor);
+    await updateOfferMessage(message, offer, actor, created ?? source, "accepted", responder);
+  } catch (error) {
+    await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "pending"});
+    console.error(`${MODULE_ID} | Cypher offer acceptance failed`, error);
+    ui.notifications.error(error.message);
+  }
+}
+
+async function dispatchDecision(payload) {
+  const data = {...payload, userId: game.user.id};
+  if (game.user.isGM) return handleOfferDecision(data);
+  if (!primaryActiveGm()) return ui.notifications.warn(t("NoActiveGm"));
+  game.socket.emit(SOCKET_CHANNEL, {action: "offerDecision", ...data});
+}
+
+function bindOfferMessage(message, html) {
+  const offer = message.getFlag(MODULE_ID, OFFER_FLAG);
+  if (!offer || offer.status !== "pending") return;
+  const actor = game.actors.get(offer.actorId);
+  const allowed = actor && (game.user.isGM || actor.testUserPermission(game.user, "OWNER"));
+  const root = html?.[0] ?? html;
+  if (!(root instanceof HTMLElement)) return;
+  for (const button of root.querySelectorAll("[data-c2t-offer-action]")) {
+    button.disabled = !allowed;
+    button.addEventListener("click", async event => {
+      event.preventDefault();
+      root.querySelectorAll("[data-c2t-offer-action]").forEach(element => { element.disabled = true; });
+      await dispatchDecision({messageId: message.id, decision: button.dataset.c2tOfferAction});
+    });
+  }
+}
+
+async function overflowChat(actor, key, data = {}) {
+  const content = await TextEditor.enrichHTML(`<div class="c2t-cypher-limit-chat"><h3><i class="fa-solid fa-triangle-exclamation"></i> ${t("LimitTitle")}</h3><p>${t(key, {actor: actor.name, ...data})}</p></div>`, {async: true});
+  await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content, whisper: actorAudience(actor)});
+}
+
+function showOverflowDialog(payload) {
+  if (payload.targetUserId !== game.user.id) return;
+  const actor = game.actors.get(payload.actorId);
+  if (!actor || openOverflowDialogs.has(actor.id)) return;
+  const cyphers = carriedCyphers(actor);
+  const limit = actorCypherLimit(actor);
+  const excess = Math.max(0, cyphers.length - limit);
+  if (!excess) return;
+  openOverflowDialogs.add(actor.id);
+  const rows = cyphers.map(item => `<label class="c2t-cypher-limit-choice"><input type="checkbox" name="discard" value="${item.id}"><img src="${item.img}" alt=""><span>${escapeHtml(item.name)}</span></label>`).join("");
+  const dialog = new Dialog({
+    title: t("LimitDialogTitle", {actor: actor.name}),
+    content: `<form class="c2t-cypher-limit-form"><p>${t("LimitDialogIntro", {count: cyphers.length, limit, excess})}</p><div>${rows}</div></form>`,
+    buttons: {
+      discard: {icon: '<i class="fa-solid fa-trash"></i>', label: t("DiscardSelected"), callback: html => {
+        const discardIds = html.find("input[name='discard']:checked").map((_index, input) => input.value).get();
+        if (discardIds.length < excess) {
+          ui.notifications.warn(t("ChooseEnough", {excess}));
+          window.setTimeout(() => showOverflowDialog({...payload, force: true}), 100);
+          return;
+        }
+        submitOverflowDecision({actorId: actor.id, discardIds, keep: false});
+      }},
+      keep: {icon: '<i class="fa-solid fa-box-archive"></i>', label: t("KeepOverLimit"), callback: () => submitOverflowDecision({actorId: actor.id, discardIds: [], keep: true})}
+    },
+    default: "discard",
+    close: () => openOverflowDialogs.delete(actor.id)
+  }, {width: 430});
+  dialog.render(true);
+}
+
+async function resolveOverflowDecision(payload) {
+  if (!game.user.isGM) return;
+  const actor = game.actors.get(payload.actorId);
+  const responder = game.users.get(payload.userId);
+  if (!actor || !responder || (!responder.isGM && !actor.testUserPermission(responder, "OWNER"))) return;
+  const cyphers = carriedCyphers(actor);
+  const limit = actorCypherLimit(actor);
+  if (payload.keep) {
+    await overflowChat(actor, "KeptOverLimit", {count: cyphers.length, limit, user: responder.name});
+    return;
+  }
+  const validIds = new Set(cyphers.map(item => item.id));
+  const discardIds = Array.from(new Set(payload.discardIds ?? [])).filter(id => validIds.has(id));
+  if (cyphers.length - discardIds.length > limit) {
+    const target = activeActorOwner(actor);
+    if (target) {
+      const dialogPayload = {action: "showOverflow", targetUserId: target.id, actorId: actor.id};
+      if (target.id === game.user.id) showOverflowDialog(dialogPayload);
+      else game.socket.emit(SOCKET_CHANNEL, dialogPayload);
+    }
+    return;
+  }
+  const names = cyphers.filter(item => discardIds.includes(item.id)).map(item => item.name).join(", ");
+  if (discardIds.length) await actor.deleteEmbeddedDocuments("Item", discardIds);
+  await overflowChat(actor, "DiscardedForLimit", {items: names, count: carriedCyphers(actor).length, limit, user: responder.name});
+}
+
+async function submitOverflowDecision(payload) {
+  openOverflowDialogs.delete(payload.actorId);
+  const data = {...payload, userId: game.user.id};
+  if (game.user.isGM) return resolveOverflowDecision(data);
+  if (!primaryActiveGm()) return ui.notifications.warn(t("NoActiveGm"));
+  game.socket.emit(SOCKET_CHANNEL, {action: "overflowDecision", ...data});
+}
+
+async function coordinateOverflow(actor) {
+  if (!game.user.isGM || primaryActiveGm()?.id !== game.user.id) return;
+  const cyphers = carriedCyphers(actor);
+  const limit = actorCypherLimit(actor);
+  if (cyphers.length <= limit) return;
+  const excess = cyphers.length - limit;
+  await overflowChat(actor, "LimitExceeded", {count: cyphers.length, limit, excess});
+  const target = activeActorOwner(actor);
+  if (!target) return;
+  const payload = {action: "showOverflow", targetUserId: target.id, actorId: actor.id};
+  if (target.id === game.user.id) showOverflowDialog(payload);
+  else game.socket.emit(SOCKET_CHANNEL, payload);
+}
+
+function scheduleOverflowCheck(item) {
+  const actor = item?.parent;
+  if (item?.type !== "cypher" || actor?.documentName !== "Actor" || actor.type !== "pc") return;
+  if (!game.user.isGM || primaryActiveGm()?.id !== game.user.id) return;
+  window.clearTimeout(overflowTimers.get(actor.id));
+  overflowTimers.set(actor.id, window.setTimeout(() => {
+    overflowTimers.delete(actor.id);
+    coordinateOverflow(actor);
+  }, 200));
+}
+
+function scheduleLimitChangeCheck(actor, changes) {
+  if (actor?.type !== "pc" || !foundry.utils.hasProperty(changes, "system.equipment.cypherLimit")) return;
+  if (!game.user.isGM || primaryActiveGm()?.id !== game.user.id) return;
+  window.clearTimeout(overflowTimers.get(actor.id));
+  overflowTimers.set(actor.id, window.setTimeout(() => {
+    overflowTimers.delete(actor.id);
+    coordinateOverflow(actor);
+  }, 200));
+}
+
+function scheduleArchiveChangeCheck(item, changes) {
+  if (item?.type !== "cypher" || !foundry.utils.hasProperty(changes, "system.archived")) return;
+  scheduleOverflowCheck(item);
+}
+
+async function handleOpportunitySocket(payload) {
+  if (payload?.action === "showOverflow") return showOverflowDialog(payload);
+  if (!game.user.isGM || primaryActiveGm()?.id !== game.user.id) return;
+  if (payload?.action === "offerDecision") return handleOfferDecision(payload);
+  if (payload?.action === "overflowDecision") return resolveOverflowDecision(payload);
 }
 
 async function openSourceItem(entry) {
@@ -395,64 +609,20 @@ async function openPanel() {
   renderPanel();
 }
 
-function positionChatLauncher(button) {
-  const message = document.querySelector("#chat-message, textarea[name='message'], textarea[data-action='send-message']");
-  const sidebar = document.querySelector("#sidebar");
-  const anchor = message ?? sidebar;
-  if (!anchor) {
-    button.style.removeProperty("left");
-    button.style.removeProperty("top");
-    button.style.right = "12px";
-    button.style.bottom = "118px";
-    return;
-  }
-  const rect = anchor.getBoundingClientRect();
-  const width = Math.max(150, Math.min(220, rect.width - 8));
-  button.style.width = `${width}px`;
-  button.style.left = `${Math.max(4, rect.right - width - 4)}px`;
-  button.style.top = `${Math.max(4, rect.top - 32)}px`;
-  button.style.removeProperty("right");
-  button.style.removeProperty("bottom");
-}
-
-function injectChatLauncher() {
-  if (!game.user?.isGM || !game.settings.get(MODULE_ID, ENABLED_SETTING)) return;
-  let button = document.querySelector(`.${LAUNCHER_CLASS}`);
-  if (!button) {
-    button = document.createElement("button");
-    button.type = "button";
-    button.className = LAUNCHER_CLASS;
-    button.title = t("OpenAssistant");
-    button.innerHTML = `<i class="fa-solid fa-wand-sparkles"></i><span>${t("Launcher")}</span>`;
-    button.addEventListener("click", openPanel);
-    document.body.appendChild(button);
-  }
-  positionChatLauncher(button);
-}
-
-function refreshChatLaunchers() {
-  injectChatLauncher();
-}
-
-function scheduleChatLauncher() {
-  refreshChatLaunchers();
-  window.setTimeout(refreshChatLaunchers, 100);
-  window.setTimeout(refreshChatLaunchers, 500);
-}
-
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, ENABLED_SETTING, { name: "C2T.Opportunities.Settings.Enabled.Name", hint: "C2T.Opportunities.Settings.Enabled.Hint", scope: "world", config: true, type: Boolean, default: true, restricted: true });
   game.settings.register(MODULE_ID, STATE_SETTING, { scope: "client", config: false, type: String, default: "{}" });
 });
 
 Hooks.once("ready", async () => {
-  if (!game.user.isGM) return;
-  loadState();
-  await buildSourceIndex();
-  hand = weightedSuggestions(HAND_SIZE);
-  scheduleChatLauncher();
   game.cypher2Toolkit = game.cypher2Toolkit ?? {};
-  game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand };
+  game.socket.on(SOCKET_CHANNEL, handleOpportunitySocket);
+  if (game.user.isGM) {
+    loadState();
+    await buildSourceIndex();
+    hand = weightedSuggestions(HAND_SIZE);
+    game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand };
+  }
 });
 
 function refreshForStandaloneItem(item) {
@@ -461,18 +631,16 @@ function refreshForStandaloneItem(item) {
 }
 
 Hooks.on("createItem", refreshForStandaloneItem);
+Hooks.on("createItem", scheduleOverflowCheck);
 Hooks.on("updateItem", refreshForStandaloneItem);
+Hooks.on("updateItem", scheduleArchiveChangeCheck);
 Hooks.on("deleteItem", refreshForStandaloneItem);
+Hooks.on("renderChatMessage", bindOfferMessage);
+Hooks.on("updateActor", scheduleLimitChangeCheck);
 Hooks.on("updateSetting", setting => {
   if (setting?.key === `${MODULE_ID}.${ENABLED_SETTING}`) {
     if (!game.settings.get(MODULE_ID, ENABLED_SETTING)) panelOpen = false;
-    document.querySelectorAll(`.${LAUNCHER_CLASS}`).forEach(element => element.remove());
-    refreshChatLaunchers();
     renderPanel();
   }
 });
-Hooks.on("renderChatLog", scheduleChatLauncher);
-Hooks.on("renderChatPopout", scheduleChatLauncher);
-Hooks.on("renderSidebar", scheduleChatLauncher);
-window.addEventListener("resize", scheduleChatLauncher);
 
