@@ -322,6 +322,13 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Cyphers narrativos marcados com `flags.cypher-2-toolkit.randomCypher` continuam como Items distribuíveis, mas não contam para o limite e não aparecem na escolha de descarte.
 - O importador só concede essa isenção quando a entrada JSON declara explicitamente `randomCypher: true`.
 
+## v0.16.0
+- Remove as explicações narrativas pré-definidas dos cartões do Assistente de Oportunidades; eles mostram apenas o efeito mecânico.
+- A janela de oferta passa a pedir uma descrição narrativa livre, o Pool usado e um custo personalizado, com 1 ponto como padrão.
+- Aceitar uma oferta verifica e desconta Might, Speed ou Intellect sem aplicar Edge antes de adicionar o Item.
+- Entregas diretas também descontam o custo e notificam o portador; se o Pool for insuficiente, o cypher não é entregue.
+- A cópia recebida na ficha registra a narrativa e o custo daquela oportunidade e omite a explicação narrativa genérica do compêndio.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

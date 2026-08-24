@@ -1239,11 +1239,31 @@
   line-height: 20px;
 }
 
-.c2t-opportunity-offer > p {
-  padding: 8px 10px;
-  border-left: 3px solid var(--color-border-highlight, #ff6400);
-  background: rgba(0, 0, 0, .07);
-  line-height: 1.4;
+.c2t-opportunity-narrative {
+  align-items: flex-start;
+}
+
+.c2t-opportunity-narrative textarea {
+  width: 100%;
+  min-height: 76px;
+  resize: vertical;
+}
+
+.c2t-opportunity-payment {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.c2t-opportunity-payment .form-group {
+  margin: 0;
+}
+
+.c2t-opportunity-offer > .hint {
+  margin: 5px 0 0;
+  font-size: 11px;
+  opacity: .72;
 }
 
 .c2t-opportunity-offer fieldset {
@@ -1266,6 +1286,22 @@
 
 .c2t-opportunity-chat h3 {
   margin: 0 0 6px;
+}
+
+.c2t-opportunity-cost {
+  padding: 5px 7px;
+  border-left: 3px solid #d19a42;
+  background: rgba(209, 154, 66, .1);
+}
+
+.c2t-acquired-opportunity {
+  padding: 6px 8px;
+  border-left: 3px solid #d19a42;
+  background: rgba(209, 154, 66, .08);
+}
+
+.c2t-acquired-opportunity p {
+  margin: 3px 0;
 }
 
 @media (max-width: 520px) {

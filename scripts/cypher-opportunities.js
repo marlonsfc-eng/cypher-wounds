@@ -86,7 +86,7 @@ async function saveState() {
 }
 
 function sourceFromWorldItem(item) {
-  return { name: item.name, img: item.img, uuid: item.uuid, type: item.type, description: item.system?.description ?? item.system?.basic?.description ?? "", explanation: item.getFlag?.(MODULE_ID, "explanation") ?? "", explanationPtBr: item.getFlag?.(MODULE_ID, "explanationPtBr") ?? "", source: "world", document: item };
+  return { name: item.name, img: item.img, uuid: item.uuid, type: item.type, description: item.system?.description ?? item.system?.basic?.description ?? "", source: "world", document: item };
 }
 
 async function buildSourceIndex() {
@@ -98,11 +98,11 @@ async function buildSourceIndex() {
   for (const pack of game.packs ?? []) {
     if (pack.documentName !== "Item") continue;
     try {
-      const index = await pack.getIndex({ fields: ["name", "type", "img", "system.description", "system.basic.description", `flags.${MODULE_ID}.explanation`, `flags.${MODULE_ID}.explanationPtBr`] });
+      const index = await pack.getIndex({ fields: ["name", "type", "img", "system.description", "system.basic.description"] });
       for (const entry of index) {
         const key = normalize(entry.name);
         if (!catalogByName.has(key) || found.has(key)) continue;
-        found.set(key, { name: entry.name, img: entry.img, uuid: entry.uuid, type: entry.type, description: entry.system?.description ?? entry.system?.basic?.description ?? "", explanation: foundry.utils.getProperty(entry, `flags.${MODULE_ID}.explanation`) ?? "", explanationPtBr: foundry.utils.getProperty(entry, `flags.${MODULE_ID}.explanationPtBr`) ?? "", source: pack.metadata?.label ?? pack.title ?? pack.collection, pack: pack.collection, id: entry._id ?? entry.id });
+        found.set(key, { name: entry.name, img: entry.img, uuid: entry.uuid, type: entry.type, description: entry.system?.description ?? entry.system?.basic?.description ?? "", source: pack.metadata?.label ?? pack.title ?? pack.collection, pack: pack.collection, id: entry._id ?? entry.id });
       }
     } catch (error) {
       console.warn(`${MODULE_ID} | Could not index Item pack ${pack.collection}`, error);
@@ -125,14 +125,6 @@ async function resolveSource(entry) {
 
 function contextLabel(context) {
   return t(`Context.${context[0].toUpperCase() + context.slice(1)}`);
-}
-
-function promptFor(entry) {
-  const source = cypherSources.get(normalize(entry.name));
-  const explanation = source?.explanationPtBr || source?.explanation;
-  if (explanation) return escapeHtml(explanation);
-  const active = state.contexts.find(context => entry.tags.includes(context)) ?? entry.tags[0] ?? "dramatic";
-  return t(`Prompt.${active[0].toUpperCase() + active.slice(1)}`, { cypher: entry.name });
 }
 
 function weightedSuggestions(count = HAND_SIZE, excluded = []) {
@@ -194,7 +186,9 @@ function effectSummary(description, maxLength = 190) {
   if (!description) return t("NoEffectSummary");
   const container = document.createElement("div");
   container.innerHTML = String(description);
-  const plain = String(container.textContent ?? "").replace(/\s+/g, " ").trim();
+  const effectBlocks = [...container.querySelectorAll("p"), ...container.querySelectorAll("div")];
+  const effectBlock = effectBlocks.find(element => /^\s*Effect\s*:/i.test(element.textContent ?? ""));
+  const plain = String(effectBlock?.textContent ?? container.textContent ?? "").replace(/^\s*Effect\s*:\s*/i, "").replace(/\s+/g, " ").trim();
   if (!plain) return t("NoEffectSummary");
   return escapeHtml(plain.length > maxLength ? `${plain.slice(0, maxLength - 1).trim()}…` : plain);
 }
@@ -206,7 +200,6 @@ function cardHtml(entry) {
     <header><img src="${source?.img || "icons/svg/mystery-man.svg"}" alt=""><div><strong>${entry.name}</strong><small>${t("Page", { page: entry.page })} · ${source ? t("Available") : t("ReferenceOnly")}</small></div></header>
     <div class="c2t-opportunity-tags">${entry.tags.map(tag => `<span>${contextLabel(tag)}</span>`).join("")}</div>
     <p class="c2t-opportunity-effect"><strong>${t("Effect")}:</strong> ${effectSummary(source?.description)}</p>
-    <p>${promptFor(entry)}</p>
     <footer>
       <button type="button" data-opportunity-action="offer" title="${t("Offer")}" ${source ? "" : "disabled"}><i class="fa-solid fa-gift"></i> ${t("Offer")}</button>
       <button type="button" data-opportunity-action="save" title="${saved ? t("Unsave") : t("Save")}"><i class="${saved ? "fa-solid" : "fa-regular"} fa-star"></i></button>
@@ -307,34 +300,87 @@ function actorCypherLimit(actor) {
   return Number.isFinite(limit) ? Math.max(0, limit) : 0;
 }
 
-function offerChatContent(entry, actor, item, prompt, interactive = false) {
-  const link = item?.uuid ? `@UUID[${item.uuid}]{${entry.name}}` : `<strong>${entry.name}</strong>`;
-  const actions = interactive ? `<div class="c2t-cypher-offer-actions"><button type="button" data-c2t-offer-action="accept"><i class="fa-solid fa-check"></i> ${t("Accept")}</button><button type="button" data-c2t-offer-action="reject"><i class="fa-solid fa-xmark"></i> ${t("Reject")}</button></div>` : "";
-  return `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-wand-sparkles"></i> ${t("ChatTitle")}</h3><p>${t("ChatOffer", { actor: actor.name, cypher: link })}</p><p><em>${prompt}</em></p>${actions}</div>`;
+const OPPORTUNITY_POOLS = new Set(["might", "speed", "intellect"]);
+
+function opportunityPoolLabel(pool) {
+  const key = pool === "speed" ? "Speed" : pool === "intellect" ? "Intellect" : "Might";
+  return game.i18n.localize(`C2T.Resources.${key}`);
 }
 
-async function cloneItemToActor(item, actor) {
+function opportunityPoolPath(actor, pool) {
+  const teen = actor?.system?.basic?.unmaskedForm === "Teen";
+  return teen ? `system.teen.pools.${pool}.value` : `system.pools.${pool}.value`;
+}
+
+function opportunityPoolValue(actor, pool) {
+  const teen = actor?.system?.basic?.unmaskedForm === "Teen";
+  const root = teen ? actor?.system?.teen?.pools : actor?.system?.pools;
+  return Number(root?.[pool]?.value ?? 0);
+}
+
+async function spendOpportunityCost(actor, pool, cost) {
+  const normalizedPool = OPPORTUNITY_POOLS.has(pool) ? pool : "might";
+  const normalizedCost = Math.max(0, Math.trunc(Number(cost) || 0));
+  const current = opportunityPoolValue(actor, normalizedPool);
+  if (current < normalizedCost) return {ok: false, pool: normalizedPool, cost: normalizedCost, current};
+  const path = opportunityPoolPath(actor, normalizedPool);
+  await actor.update({[path]: current - normalizedCost});
+  return {ok: true, pool: normalizedPool, cost: normalizedCost, current, path};
+}
+
+async function restoreOpportunityCost(actor, payment) {
+  if (payment?.ok && payment.cost > 0) await actor.update({[payment.path]: payment.current});
+}
+
+async function notifyInsufficientPool(actor, pool, cost, current) {
+  const content = `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-circle-exclamation"></i> ${t("CannotAcceptTitle")}</h3><p>${t("CannotAfford", {actor: actor.name, pool: opportunityPoolLabel(pool), cost, current})}</p></div>`;
+  await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content, whisper: actorAudience(actor)});
+}
+
+function opportunityItemDescription(description, opportunity) {
+  const container = document.createElement("div");
+  container.innerHTML = String(description ?? "");
+  for (const element of Array.from(container.querySelectorAll("p, div"))) {
+    if (/^\s*Explanation\s*:/i.test(element.textContent ?? "")) element.remove();
+  }
+  const narrative = escapeHtml(opportunity.narrative).replace(/\n/g, "<br>");
+  return `<div class="c2t-acquired-opportunity"><p><strong>${t("Narrative")}:</strong> ${narrative}</p><p><strong>${t("AcquisitionCost")}:</strong> ${opportunity.cost} ${opportunityPoolLabel(opportunity.pool)} (${t("EdgeIgnored")})</p></div>${container.innerHTML}`;
+}
+
+function offerChatContent(entry, actor, item, narrative, pool, cost, interactive = false) {
+  const link = item?.uuid ? `@UUID[${item.uuid}]{${entry.name}}` : `<strong>${entry.name}</strong>`;
+  const actions = interactive ? `<div class="c2t-cypher-offer-actions"><button type="button" data-c2t-offer-action="accept"><i class="fa-solid fa-check"></i> ${t("Accept")}</button><button type="button" data-c2t-offer-action="reject"><i class="fa-solid fa-xmark"></i> ${t("Reject")}</button></div>` : "";
+  const narrativeHtml = escapeHtml(narrative).replace(/\n/g, "<br>");
+  return `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-wand-sparkles"></i> ${t("ChatTitle")}</h3><p>${t("ChatOffer", { actor: actor.name, cypher: link })}</p><p><em>${narrativeHtml}</em></p><p class="c2t-opportunity-cost"><strong>${t("OpportunityCost", {cost, pool: opportunityPoolLabel(pool)})}</strong> ${t("EdgeIgnored")}</p>${actions}</div>`;
+}
+
+async function cloneItemToActor(item, actor, opportunity = null) {
   const data = item.toObject();
   delete data._id;
   delete data.folder;
   delete data.sort;
   delete data.ownership;
   delete data._stats;
+  if (opportunity) {
+    data.flags = foundry.utils.mergeObject(data.flags ?? {}, {[MODULE_ID]: {opportunity: {...opportunity, acquiredAt: new Date().toISOString()}}}, {inplace: false, overwrite: true});
+    foundry.utils.setProperty(data, "system.description", opportunityItemDescription(foundry.utils.getProperty(data, "system.description"), opportunity));
+  }
   const created = await actor.createEmbeddedDocuments("Item", [data]);
   return created[0] ?? null;
 }
 
-async function sendDirectDeliveryNotice(actor, item) {
+async function sendDirectDeliveryNotice(actor, item, narrative, pool, cost) {
   const link = item?.uuid ? `@UUID[${item.uuid}]{${item.name}}` : `<strong>${item.name}</strong>`;
-  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-gift"></i> ${t("ReceivedTitle")}</h3><p>${t("ReceivedDirect", {actor: actor.name, cypher: link})}</p></div>`, {async: true});
+  const narrativeHtml = escapeHtml(narrative).replace(/\n/g, "<br>");
+  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-gift"></i> ${t("ReceivedTitle")}</h3><p>${t("ReceivedDirect", {actor: actor.name, cypher: link})}</p><p><em>${narrativeHtml}</em></p><p class="c2t-opportunity-cost">${t("CostPaid", {cost, pool: opportunityPoolLabel(pool)})} ${t("EdgeIgnored")}</p></div>`, {async: true});
   await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content, whisper: actorAudience(actor)});
 }
 
-async function createInteractiveOffer(entry, actor, item, prompt, mode) {
-  const content = await TextEditor.enrichHTML(offerChatContent(entry, actor, item, prompt, true), {async: true});
+async function createInteractiveOffer(entry, actor, item, narrative, pool, cost, mode) {
+  const content = await TextEditor.enrichHTML(offerChatContent(entry, actor, item, narrative, pool, cost, true), {async: true});
   const data = {
     speaker: ChatMessage.getSpeaker(), content,
-    flags: {[MODULE_ID]: {[OFFER_FLAG]: {actorId: actor.id, itemUuid: item.uuid, itemName: entry.name, prompt, status: "pending"}}}
+    flags: {[MODULE_ID]: {[OFFER_FLAG]: {actorId: actor.id, itemUuid: item.uuid, itemName: entry.name, narrative, pool, cost, status: "pending"}}}
   };
   if (mode === "whisper") data.whisper = actorAudience(actor);
   await ChatMessage.create(data);
@@ -343,16 +389,30 @@ async function createInteractiveOffer(entry, actor, item, prompt, mode) {
 async function executeOffer(entry, html) {
   const actor = game.actors.get(String(html.find("[name=actor]").val()));
   const mode = String(html.find("[name=mode]:checked").val() ?? "remind");
+  const narrative = String(html.find("[name=narrative]").val() ?? "").trim();
+  const pool = String(html.find("[name=pool]").val() ?? "might");
+  const cost = Math.max(0, Math.trunc(Number(html.find("[name=cost]").val()) || 0));
   if (!actor) return ui.notifications.warn(t("ChooseActor")), false;
+  if (mode !== "remind" && !narrative) return ui.notifications.warn(t("NarrativeRequired")), false;
   const item = await resolveSource(entry);
   if (!item) return ui.notifications.warn(t("ItemNotFound")), false;
-  const prompt = promptFor(entry);
   if (mode === "add") {
-    const created = await cloneItemToActor(item, actor);
-    await sendDirectDeliveryNotice(actor, created ?? item);
+    const payment = await spendOpportunityCost(actor, pool, cost);
+    if (!payment.ok) {
+      await notifyInsufficientPool(actor, payment.pool, payment.cost, payment.current);
+      return false;
+    }
+    let created;
+    try {
+      created = await cloneItemToActor(item, actor, {narrative, pool: payment.pool, cost: payment.cost, delivery: "direct"});
+    } catch (error) {
+      await restoreOpportunityCost(actor, payment);
+      throw error;
+    }
+    await sendDirectDeliveryNotice(actor, created ?? item, narrative, payment.pool, payment.cost);
     ui.notifications.info(t("Added", { cypher: entry.name, actor: actor.name }));
   } else if (mode === "whisper" || mode === "public") {
-    await createInteractiveOffer(entry, actor, item, prompt, mode);
+    await createInteractiveOffer(entry, actor, item, narrative, pool, cost, mode);
   } else {
     ui.notifications.info(t("Reminder", { actor: actor.name, cypher: entry.name }));
   }
@@ -368,10 +428,13 @@ async function executeOffer(entry, html) {
 function openOfferDialog(entry) {
   const actors = actorOptions();
   if (!actors.length) return ui.notifications.warn(t("NoActors"));
-  const content = `<form class="c2t-opportunity-offer"><p>${promptFor(entry)}</p><div class="form-group"><label>${t("Character")}</label><select name="actor">${actors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join("")}</select></div><fieldset><legend>${t("Delivery")}</legend>
-    <label><input type="radio" name="mode" value="remind" checked> ${t("ModeRemind")}</label>
+  const content = `<form class="c2t-opportunity-offer"><div class="form-group"><label>${t("Character")}</label><select name="actor">${actors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join("")}</select></div>
+    <div class="form-group c2t-opportunity-narrative"><label>${t("Narrative")}</label><textarea name="narrative" rows="4" placeholder="${t("NarrativePlaceholder")}"></textarea></div>
+    <div class="c2t-opportunity-payment"><div class="form-group"><label>${t("Pool")}</label><select name="pool"><option value="might">${game.i18n.localize("C2T.Resources.Might")}</option><option value="speed">${game.i18n.localize("C2T.Resources.Speed")}</option><option value="intellect">${game.i18n.localize("C2T.Resources.Intellect")}</option></select></div><div class="form-group"><label>${t("Cost")}</label><input type="number" name="cost" value="1" min="0" step="1"></div></div><p class="hint">${t("CostHint")}</p>
+    <fieldset><legend>${t("Delivery")}</legend>
+    <label><input type="radio" name="mode" value="remind"> ${t("ModeRemind")}</label>
     <label><input type="radio" name="mode" value="add"> ${t("ModeAdd")}</label>
-    <label><input type="radio" name="mode" value="whisper"> ${t("ModeWhisper")}</label>
+    <label><input type="radio" name="mode" value="whisper" checked> ${t("ModeWhisper")}</label>
     <label><input type="radio" name="mode" value="public"> ${t("ModePublic")}</label>
   </fieldset></form>`;
   const dialog = new Dialog({ title: `${t("Offer")}: ${entry.name}`, content, buttons: {
@@ -385,7 +448,7 @@ async function updateOfferMessage(message, offer, actor, item, status, responder
   const link = item?.uuid ? `@UUID[${item.uuid}]{${item.name}}` : `<strong>${offer.itemName}</strong>`;
   const key = status === "accepted" ? "OfferAccepted" : "OfferRejected";
   const icon = status === "accepted" ? "fa-circle-check" : "fa-circle-xmark";
-  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat resolved ${status}"><h3><i class="fa-solid ${icon}"></i> ${t("ChatTitle")}</h3><p>${t(key, {actor: actor.name, cypher: link, user: responder.name})}</p></div>`, {async: true});
+  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat resolved ${status}"><h3><i class="fa-solid ${icon}"></i> ${t("ChatTitle")}</h3><p>${t(key, {actor: actor.name, cypher: link, user: responder.name, cost: offer.cost, pool: opportunityPoolLabel(offer.pool)})}</p></div>`, {async: true});
   await message.update({content, [`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: status});
 }
 
@@ -403,12 +466,20 @@ async function handleOfferDecision(payload) {
   }
   if (payload.decision !== "accept") return;
   await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "processing"});
+  let payment = null;
   try {
     const source = await fromUuid(offer.itemUuid);
     if (!source || source.documentName !== "Item") throw new Error(t("ItemNotFound"));
-    const created = await cloneItemToActor(source, actor);
+    payment = await spendOpportunityCost(actor, offer.pool, offer.cost);
+    if (!payment.ok) {
+      await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "pending", [`flags.${MODULE_ID}.${OFFER_FLAG}.lastAttempt`]: Date.now()});
+      await notifyInsufficientPool(actor, payment.pool, payment.cost, payment.current);
+      return;
+    }
+    const created = await cloneItemToActor(source, actor, {narrative: offer.narrative, pool: payment.pool, cost: payment.cost, delivery: "accepted-offer"});
     await updateOfferMessage(message, offer, actor, created ?? source, "accepted", responder);
   } catch (error) {
+    await restoreOpportunityCost(actor, payment);
     await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "pending"});
     console.error(`${MODULE_ID} | Cypher offer acceptance failed`, error);
     ui.notifications.error(error.message);
