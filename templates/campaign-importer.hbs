@@ -1,0 +1,21 @@
+<form class="c2t-campaign-importer">
+  <p>Selecione o arquivo JSON privado da campanha. O Toolkit enviará os assets para a pasta de dados do mundo e criará ou atualizará Journals, Actors, Items, tabelas e cenas.</p>
+  <div class="c2t-campaign-callout">
+    <strong>Seguro para atualizar:</strong> os documentos são reconhecidos por identificadores internos. Entradas preservadas pelo arquivo, como anotações de campanha, não serão sobrescritas.
+  </div>
+  <div class="form-group">
+    <label>Arquivo da campanha</label>
+    <div class="form-fields">
+      <input type="file" name="campaignFile" accept=".json,application/json">
+    </div>
+    <p class="hint">O arquivo permanece no seu computador; apenas os assets e documentos importados são enviados ao mundo.</p>
+  </div>
+  {{#if lastImport}}
+    <p><strong>Última importação:</strong> {{lastImport.title}} — {{lastImport.date}} — versão {{lastImport.version}}</p>
+  {{else}}
+    <p><em>Nenhuma campanha privada foi importada neste mundo.</em></p>
+  {{/if}}
+  <footer class="sheet-footer flexrow">
+    <button type="submit"><i class="fas fa-book-open"></i> Importar/Atualizar campanha</button>
+  </footer>
+</form>

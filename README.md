@@ -329,6 +329,18 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 - Entregas diretas também descontam o custo e notificam o portador; se o Pool for insuficiente, o cypher não é entregue.
 - A cópia recebida na ficha registra a narrativa e o custo daquela oportunidade e omite a explicação narrativa genérica do compêndio.
 
+## v0.17.0
+
+- Adiciona um importador genérico de campanhas privadas nas configurações do Toolkit.
+- O GM seleciona um único JSON no navegador; não é necessário instalar uma segunda pasta de módulo na hospedagem.
+- Assets incorporados ao JSON são enviados pelo File Picker para a pasta de dados do mundo.
+- Cria e atualiza Journals, Actors, Items, RollTables e Scenes por identificadores estáveis, sem duplicar documentos.
+- Expõe `game.cypher2Toolkit.openCampaignImporter()` para macros.
+
+### Importar uma campanha privada
+
+Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit → Importar campanha privada**, escolha o JSON local e clique em **Importar/Atualizar campanha**. Faça primeiro um backup do mundo. O usuário GM precisa ter permissão de upload de arquivos na hospedagem.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
