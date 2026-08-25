@@ -384,6 +384,12 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Força a renderização completa do monitor do Mestre depois de cada resposta, evitando contadores e estados visuais desatualizados.
 - Diferencia a notificação de envio da confirmação efetiva recebida pelo Mestre.
 
+## v0.20.3
+
+- Declara oficialmente o namespace de socket do módulo no manifesto com `"socket": true`.
+- Corrige a entrega real das declarações Fast/Normal/Last dos jogadores ao cliente do Mestre.
+- Habilita corretamente o mesmo canal já usado pelas decisões remotas de Combat Opportunities.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
