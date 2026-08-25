@@ -7,6 +7,7 @@ const HAND_SIZE = 3;
 const SOCKET_CHANNEL = `module.${MODULE_ID}`;
 const OFFER_FLAG = "cypherOffer";
 const OPPORTUNITY_CATEGORY = "Combat Opportunities";
+const SCENE_PLAN_FLAG = "cypherOpportunityPlan";
 
 const CONTEXTS = ["combat", "defense", "social", "stealth", "exploration", "chase", "recovery", "knowledge", "survival", "dramatic"];
 
@@ -166,7 +167,7 @@ function loadState() {
       saved: Array.isArray(raw.saved) ? raw.saved.filter(name => catalogByName.has(normalize(name))).slice(0, 20) : [],
       history: Array.isArray(raw.history) ? raw.history.filter(name => catalogByName.has(normalize(name))).slice(-HISTORY_LIMIT) : [],
       collapsed: Boolean(raw.collapsed),
-      view: ["suggestions", "catalog", "saved"].includes(raw.view) ? raw.view : "suggestions",
+      view: ["suggestions", "catalog", "saved", "scene"].includes(raw.view) ? raw.view : "suggestions",
       left: raw.left !== null && raw.left !== undefined && Number.isFinite(Number(raw.left)) ? Number(raw.left) : null,
       top: Number.isFinite(Number(raw.top)) ? Number(raw.top) : 120
     };
@@ -320,6 +321,67 @@ function matchingCatalogEntries(query) {
   });
 }
 
+function planningScene() {
+  return canvas?.scene ?? game.scenes?.active ?? null;
+}
+
+function scenePlan(scene = planningScene()) {
+  const plan = scene?.getFlag?.(MODULE_ID, SCENE_PLAN_FLAG);
+  return Array.isArray(plan) ? plan.filter(item => item?.id && item?.name) : [];
+}
+
+function pendingScenePlanCount(scene = planningScene()) {
+  return scenePlan(scene).filter(item => item.status === "pending" || item.status === "offered").length;
+}
+
+async function saveScenePlan(plan, scene = planningScene()) {
+  if (!scene || !game.user?.isGM) return false;
+  await scene.setFlag(MODULE_ID, SCENE_PLAN_FLAG, plan);
+  Hooks.callAll("c2tScenePlanChanged", scene, plan);
+  renderPanel();
+  return true;
+}
+
+async function updatePlanStatus(sceneId, planId, status) {
+  if (!sceneId || !planId || !game.user?.isGM) return;
+  const scene = game.scenes.get(sceneId);
+  if (!scene) return;
+  const plan = scenePlan(scene);
+  const index = plan.findIndex(item => item.id === planId);
+  if (index < 0) return;
+  plan[index] = {...plan[index], status, updatedAt: new Date().toISOString()};
+  await saveScenePlan(plan, scene);
+}
+
+function planStatusLabel(status) {
+  const normalized = ["pending", "offered", "accepted", "rejected", "delivered", "skipped"].includes(status) ? status : "pending";
+  return t(`PlanStatus.${normalized[0].toUpperCase()}${normalized.slice(1)}`);
+}
+
+function plannedActorLabel(item) {
+  return game.actors.get(item.actorId)?.name ?? t("DecideWhenOffering");
+}
+
+function scenePlanHtml() {
+  const scene = planningScene();
+  if (!scene) return `<section class="c2t-opportunity-workspace"><div class="c2t-opportunity-empty-state"><i class="fa-solid fa-clapperboard"></i><p>${escapeHtml(t("NoActiveScene"))}</p></div></section>`;
+  const plan = scenePlan(scene);
+  const rows = plan.map(item => {
+    const entry = catalogByName.get(normalize(item.name));
+    const source = entry ? cypherSources.get(normalize(entry.name)) : null;
+    const pool = item.pool ? opportunityPoolLabel(item.pool) : t("DecideWhenOffering");
+    const cost = item.cost !== null && item.cost !== "" && Number.isFinite(Number(item.cost)) ? Number(item.cost) : t("DecideWhenOffering");
+    const narrative = item.narrative || (entry ? narrativeIdea(entry) : "");
+    return `<article class="c2t-scene-plan-entry status-${escapeHtml(item.status || "pending")}" data-plan-id="${escapeHtml(item.id)}" data-cypher="${escapeHtml(item.name)}" draggable="true">
+      <span class="c2t-scene-plan-handle" title="${t("DragToReorder")}"><i class="fa-solid fa-grip-vertical"></i></span>
+      <img src="${source?.img || "icons/svg/mystery-man.svg"}" alt="">
+      <div class="c2t-scene-plan-content"><header><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(planStatusLabel(item.status))}</span></header><p>${escapeHtml(narrative)}</p><small><i class="fa-solid fa-user"></i> ${escapeHtml(plannedActorLabel(item))} <i class="fa-solid fa-gauge-high"></i> ${escapeHtml(pool)} · ${escapeHtml(cost)}</small></div>
+      <div class="c2t-scene-plan-actions"><button type="button" data-plan-action="offer" title="${t("OfferNow")}" ${entry && source ? "" : "disabled"}><i class="fa-solid fa-gift"></i> ${t("OfferNow")}</button><button type="button" data-plan-action="edit" title="${t("EditScenePlan")}"><i class="fa-solid fa-pen"></i></button><button type="button" data-plan-action="${item.status === "skipped" ? "restore" : "skip"}" title="${item.status === "skipped" ? t("RestorePending") : t("MarkSkipped")}"><i class="fa-solid ${item.status === "skipped" ? "fa-rotate-left" : "fa-forward"}"></i></button><button type="button" data-plan-action="remove" title="${t("RemoveFromPlan")}"><i class="fa-solid fa-trash"></i></button></div>
+    </article>`;
+  }).join("");
+  return `<section class="c2t-opportunity-workspace c2t-scene-plan-workspace"><header><h3>${escapeHtml(t("ScenePlanHeading", {scene: scene.name}))}</h3><span>${escapeHtml(t("ScenePlanSummary", {pending: pendingScenePlanCount(scene), total: plan.length}))}</span></header>${plan.length ? `<div class="c2t-scene-plan-list">${rows}</div>` : `<div class="c2t-opportunity-empty-state"><i class="fa-solid fa-list-check"></i><p>${escapeHtml(t("NoScenePlan"))}</p></div>`}</section>`;
+}
+
 function cardHtml(entry, {replaceable = false} = {}) {
   const source = cypherSources.get(normalize(entry.name));
   const saved = state.saved.some(name => normalize(name) === normalize(entry.name));
@@ -332,6 +394,7 @@ function cardHtml(entry, {replaceable = false} = {}) {
     <footer class="${replaceable ? "has-replace" : ""}">
       <button type="button" data-opportunity-action="offer" title="${t("Offer")}" ${source ? "" : "disabled"}><i class="fa-solid fa-gift"></i> ${t("Offer")}</button>
       <button type="button" data-opportunity-action="save" title="${saved ? t("Unsave") : t("Save")}"><i class="${saved ? "fa-solid" : "fa-regular"} fa-star"></i></button>
+      <button type="button" data-opportunity-action="plan" title="${t("AddToScenePlan")}"><i class="fa-solid fa-list-check"></i></button>
       ${replaceable ? `<button type="button" data-opportunity-action="replace" title="${t("Replace")}"><i class="fa-solid fa-shuffle"></i></button>` : ""}
       <button type="button" data-opportunity-action="open" title="${t("OpenItem")}" ${source ? "" : "disabled"}><i class="fa-solid fa-up-right-from-square"></i></button>
     </footer>
@@ -339,6 +402,7 @@ function cardHtml(entry, {replaceable = false} = {}) {
 }
 
 function workspaceHtml() {
+  if (!searchQuery.trim() && state.view === "scene") return scenePlanHtml();
   let entries;
   let title;
   let empty;
@@ -369,6 +433,7 @@ function workspaceHtml() {
 
 function panelHtml() {
   const available = cypherSources.size;
+  const planned = scenePlan().length;
   return `<section id="${PANEL_ID}" class="c2t-opportunity-panel ${state.collapsed ? "collapsed" : ""}" style="${state.left === null ? "right: 18px;" : `left: ${state.left}px;`} top: ${state.top}px;">
     <header class="c2t-opportunity-header">
       <div><i class="fa-solid fa-wand-sparkles"></i><span>${t("Title")}</span><small>${available}/${CATALOG.length}</small></div>
@@ -381,6 +446,7 @@ function panelHtml() {
           <button type="button" data-view="suggestions" class="${!searchQuery && state.view === "suggestions" ? "active" : ""}"><i class="fa-solid fa-wand-sparkles"></i> ${t("SuggestionsTab")}</button>
           <button type="button" data-view="catalog" class="${searchQuery || state.view === "catalog" ? "active" : ""}"><i class="fa-solid fa-table-cells-large"></i> ${t("CatalogTab")}</button>
           <button type="button" data-view="saved" class="${!searchQuery && state.view === "saved" ? "active" : ""}"><i class="fa-solid fa-star"></i> ${t("SavedTab", {count: state.saved.length})}</button>
+          <button type="button" data-view="scene" class="${!searchQuery && state.view === "scene" ? "active" : ""}"><i class="fa-solid fa-list-check"></i> ${t("ScenePlanTab", {count: planned})}</button>
         </div>
       </div>
       <div class="c2t-opportunity-scene-tools">
@@ -570,17 +636,17 @@ async function sendDirectDeliveryNotice(actor, item, narrative, pool, cost) {
   await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content, whisper: actorAudience(actor)});
 }
 
-async function createInteractiveOffer(entry, actor, item, narrative, pool, cost, mode) {
+async function createInteractiveOffer(entry, actor, item, narrative, pool, cost, mode, planContext = {}) {
   const content = await TextEditor.enrichHTML(offerChatContent(entry, actor, item, narrative, pool, cost, true), {async: true});
   const data = {
     speaker: ChatMessage.getSpeaker(), content,
-    flags: {[MODULE_ID]: {[OFFER_FLAG]: {actorId: actor.id, itemUuid: item.uuid, itemName: entry.name, narrative, pool, cost, status: "pending"}}}
+    flags: {[MODULE_ID]: {[OFFER_FLAG]: {actorId: actor.id, itemUuid: item.uuid, itemName: entry.name, narrative, pool, cost, status: "pending", planSceneId: planContext.sceneId ?? null, planId: planContext.planId ?? null}}}
   };
   if (mode === "whisper") data.whisper = actorAudience(actor);
   await ChatMessage.create(data);
 }
 
-async function executeOffer(entry, html) {
+async function executeOffer(entry, html, planContext = {}) {
   const actor = game.actors.get(String(html.find("[name=actor]").val()));
   const mode = String(html.find("[name=mode]:checked").val() ?? "remind");
   const narrative = String(html.find("[name=narrative]").val() ?? "").trim();
@@ -603,9 +669,11 @@ async function executeOffer(entry, html) {
       throw error;
     }
     await sendDirectDeliveryNotice(actor, created ?? item, narrative, payment.pool, payment.cost);
+    await updatePlanStatus(planContext.sceneId, planContext.planId, "delivered");
     ui.notifications.info(t("Added", { cypher: entry.name, actor: actor.name }));
   } else if (mode === "whisper" || mode === "public") {
-    await createInteractiveOffer(entry, actor, item, narrative, pool, cost, mode);
+    await createInteractiveOffer(entry, actor, item, narrative, pool, cost, mode, planContext);
+    await updatePlanStatus(planContext.sceneId, planContext.planId, "offered");
   } else {
     ui.notifications.info(t("Reminder", { actor: actor.name, cypher: entry.name }));
   }
@@ -618,12 +686,14 @@ async function executeOffer(entry, html) {
   return true;
 }
 
-function openOfferDialog(entry) {
+function openOfferDialog(entry, defaults = {}) {
   const actors = actorOptions();
   if (!actors.length) return ui.notifications.warn(t("NoActors"));
-  const content = `<form class="c2t-opportunity-offer"><div class="form-group"><label>${t("Character")}</label><select name="actor">${actors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join("")}</select></div>
-    <div class="form-group c2t-opportunity-narrative"><label>${t("Narrative")}</label><textarea name="narrative" rows="4" placeholder="${t("NarrativePlaceholder")}"></textarea></div>
-    <div class="c2t-opportunity-payment"><div class="form-group"><label>${t("Pool")}</label><select name="pool"><option value="might">${game.i18n.localize("C2T.Resources.Might")}</option><option value="speed">${game.i18n.localize("C2T.Resources.Speed")}</option><option value="intellect">${game.i18n.localize("C2T.Resources.Intellect")}</option></select></div><div class="form-group"><label>${t("Cost")}</label><input type="number" name="cost" value="1" min="0" step="1"></div></div><p class="hint">${t("CostHint")}</p>
+  const selectedPool = OPPORTUNITY_POOLS.has(defaults.pool) ? defaults.pool : "might";
+  const defaultCost = defaults.cost !== null && defaults.cost !== "" && Number.isFinite(Number(defaults.cost)) ? Math.max(0, Math.trunc(Number(defaults.cost))) : 1;
+  const content = `<form class="c2t-opportunity-offer"><div class="form-group"><label>${t("Character")}</label><select name="actor">${actors.map(actor => `<option value="${actor.id}" ${actor.id === defaults.actorId ? "selected" : ""}>${escapeHtml(actor.name)}</option>`).join("")}</select></div>
+    <div class="form-group c2t-opportunity-narrative"><label>${t("Narrative")}</label><textarea name="narrative" rows="4" placeholder="${t("NarrativePlaceholder")}">${escapeHtml(defaults.narrative ?? "")}</textarea></div>
+    <div class="c2t-opportunity-payment"><div class="form-group"><label>${t("Pool")}</label><select name="pool"><option value="might" ${selectedPool === "might" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Might")}</option><option value="speed" ${selectedPool === "speed" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Speed")}</option><option value="intellect" ${selectedPool === "intellect" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Intellect")}</option></select></div><div class="form-group"><label>${t("Cost")}</label><input type="number" name="cost" value="${defaultCost}" min="0" step="1"></div></div><p class="hint">${t("CostHint")}</p>
     <fieldset><legend>${t("Delivery")}</legend>
     <label><input type="radio" name="mode" value="remind"> ${t("ModeRemind")}</label>
     <label><input type="radio" name="mode" value="add"> ${t("ModeAdd")}</label>
@@ -631,10 +701,45 @@ function openOfferDialog(entry) {
     <label><input type="radio" name="mode" value="public"> ${t("ModePublic")}</label>
   </fieldset></form>`;
   const dialog = new Dialog({ title: `${t("Offer")}: ${entry.name}`, content, buttons: {
-    apply: { icon: '<i class="fa-solid fa-check"></i>', label: t("ConfirmOffer"), callback: html => executeOffer(entry, html) },
+    apply: { icon: '<i class="fa-solid fa-check"></i>', label: t("ConfirmOffer"), callback: html => executeOffer(entry, html, defaults) },
     cancel: { label: t("Cancel") }
   } }, { width: 470 });
   dialog.render(true);
+}
+
+function openPlanDialog(entry, existing = null) {
+  const scene = planningScene();
+  if (!scene) return ui.notifications.warn(t("NoActiveScene"));
+  const actors = actorOptions();
+  const current = existing ?? {};
+  const content = `<form class="c2t-scene-plan-form">
+    <p class="hint">${t("PlanDialogHint", {scene: escapeHtml(scene.name)})}</p>
+    <div class="form-group c2t-opportunity-narrative"><label>${t("PlannedTrigger")}</label><textarea name="narrative" rows="4" placeholder="${escapeHtml(narrativeIdea(entry))}">${escapeHtml(current.narrative ?? "")}</textarea></div>
+    <div class="form-group"><label>${t("PlannedTarget")}</label><select name="actor"><option value="">${t("DecideWhenOffering")}</option>${actors.map(actor => `<option value="${actor.id}" ${actor.id === current.actorId ? "selected" : ""}>${escapeHtml(actor.name)}</option>`).join("")}</select></div>
+    <div class="c2t-opportunity-payment"><div class="form-group"><label>${t("PlannedPool")}</label><select name="pool"><option value="">${t("DecideWhenOffering")}</option><option value="might" ${current.pool === "might" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Might")}</option><option value="speed" ${current.pool === "speed" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Speed")}</option><option value="intellect" ${current.pool === "intellect" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Intellect")}</option></select></div><div class="form-group"><label>${t("PlannedCost")}</label><input type="number" name="cost" value="${current.cost !== null && current.cost !== "" && Number.isFinite(Number(current.cost)) ? Number(current.cost) : ""}" min="0" step="1" placeholder="1"></div></div>
+  </form>`;
+  new Dialog({title: `${t(existing ? "EditScenePlan" : "AddToScenePlan")}: ${entry.name}`, content, buttons: {
+    save: {icon: '<i class="fa-solid fa-check"></i>', label: t("SavePlan"), callback: async html => {
+      const plan = scenePlan(scene);
+      const id = existing?.id ?? foundry.utils.randomID();
+      const rawCost = String(html.find("[name=cost]").val() ?? "").trim();
+      const item = {
+        ...current, id, name: entry.name,
+        narrative: String(html.find("[name=narrative]").val() ?? "").trim(),
+        actorId: String(html.find("[name=actor]").val() ?? ""),
+        pool: String(html.find("[name=pool]").val() ?? ""),
+        cost: rawCost === "" ? null : Math.max(0, Math.trunc(Number(rawCost) || 0)),
+        status: current.status ?? "pending",
+        createdAt: current.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString()
+      };
+      const index = plan.findIndex(planned => planned.id === id);
+      if (index >= 0) plan[index] = item;
+      else plan.push(item);
+      await saveScenePlan(plan, scene);
+      ui.notifications.info(t(index >= 0 ? "PlanUpdated" : "PlanAdded", {cypher: entry.name, scene: scene.name}));
+    }},
+    cancel: {label: t("Cancel")}
+  }}, {width: 520}).render(true);
 }
 
 async function updateOfferMessage(message, offer, actor, item, status, responder) {
@@ -655,6 +760,7 @@ async function handleOfferDecision(payload) {
   if (!responder.isGM && !actor.testUserPermission(responder, "OWNER")) return;
   if (payload.decision === "reject") {
     await updateOfferMessage(message, offer, actor, null, "rejected", responder);
+    await updatePlanStatus(offer.planSceneId, offer.planId, "rejected");
     return;
   }
   if (payload.decision !== "accept") return;
@@ -671,6 +777,7 @@ async function handleOfferDecision(payload) {
     }
     const created = await cloneItemToActor(source, actor, {narrative: offer.narrative, pool: payment.pool, cost: payment.cost, delivery: "accepted-offer"});
     await updateOfferMessage(message, offer, actor, created ?? source, "accepted", responder);
+    await updatePlanStatus(offer.planSceneId, offer.planId, "accepted");
   } catch (error) {
     await restoreOpportunityCost(actor, payment);
     await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "pending"});
@@ -948,6 +1055,39 @@ async function openSourceItem(entry) {
 
 function bindPanel(panel) {
   bindDrag(panel);
+  let draggedPlanId = null;
+  panel.addEventListener("dragstart", event => {
+    const row = event.target.closest(".c2t-scene-plan-entry[data-plan-id]");
+    if (!row) return;
+    draggedPlanId = row.dataset.planId;
+    row.classList.add("dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", draggedPlanId);
+  });
+  panel.addEventListener("dragover", event => {
+    const row = event.target.closest(".c2t-scene-plan-entry[data-plan-id]");
+    if (!row || row.dataset.planId === draggedPlanId) return;
+    event.preventDefault();
+    panel.querySelectorAll(".c2t-scene-plan-entry.drop-target").forEach(element => element.classList.remove("drop-target"));
+    row.classList.add("drop-target");
+  });
+  panel.addEventListener("drop", async event => {
+    const target = event.target.closest(".c2t-scene-plan-entry[data-plan-id]");
+    if (!target || !draggedPlanId || target.dataset.planId === draggedPlanId) return;
+    event.preventDefault();
+    const plan = scenePlan();
+    const from = plan.findIndex(item => item.id === draggedPlanId);
+    const to = plan.findIndex(item => item.id === target.dataset.planId);
+    if (from >= 0 && to >= 0) {
+      const [moved] = plan.splice(from, 1);
+      plan.splice(to, 0, moved);
+      await saveScenePlan(plan);
+    }
+  });
+  panel.addEventListener("dragend", () => {
+    draggedPlanId = null;
+    panel.querySelectorAll(".c2t-scene-plan-entry.dragging, .c2t-scene-plan-entry.drop-target").forEach(element => element.classList.remove("dragging", "drop-target"));
+  });
   const search = panel.querySelector("[data-opportunity-search]");
   search?.addEventListener("input", event => {
     searchQuery = event.currentTarget.value;
@@ -984,6 +1124,29 @@ function bindPanel(panel) {
     if (panelAction === "dramatic") { state.contexts = ["dramatic"]; await saveState(); drawNewHand(); return; }
     if (panelAction === "clear-history") { state.history = []; await saveState(); drawNewHand({ rememberCurrent: false }); return; }
     if (panelAction === "refresh") { await buildSourceIndex(); renderPanel(); ui.notifications.info(t("CatalogRefreshed", { count: cypherSources.size })); return; }
+    const planActionElement = event.target.closest("[data-plan-action]");
+    if (planActionElement) {
+      if (planActionElement.disabled) return;
+      const row = planActionElement.closest("[data-plan-id]");
+      const plan = scenePlan();
+      const index = plan.findIndex(item => item.id === row?.dataset.planId);
+      if (index < 0) return;
+      const item = plan[index];
+      const entry = catalogByName.get(normalize(item.name));
+      const action = planActionElement.dataset.planAction;
+      if (action === "edit" && entry) openPlanDialog(entry, item);
+      if (action === "offer" && entry) openOfferDialog(entry, {sceneId: planningScene()?.id, planId: item.id, actorId: item.actorId, narrative: item.narrative, pool: item.pool, cost: item.cost});
+      if (action === "skip" || action === "restore") {
+        plan[index] = {...item, status: action === "skip" ? "skipped" : "pending", updatedAt: new Date().toISOString()};
+        await saveScenePlan(plan);
+      }
+      if (action === "remove") {
+        plan.splice(index, 1);
+        await saveScenePlan(plan);
+        ui.notifications.info(t("PlanRemoved", {cypher: item.name}));
+      }
+      return;
+    }
     const actionElement = event.target.closest("[data-opportunity-action]");
     if (!actionElement) {
       const card = event.target.closest(".c2t-opportunity-card[data-cypher]");
@@ -1000,6 +1163,7 @@ function bindPanel(panel) {
     const action = actionElement.dataset.opportunityAction;
     if (action === "offer") openOfferDialog(entry);
     if (action === "save") toggleSaved(entry.name);
+    if (action === "plan") openPlanDialog(entry);
     if (action === "replace") replaceSuggestion(entry.name);
     if (action === "open") openSourceItem(entry);
   });
@@ -1037,7 +1201,7 @@ Hooks.once("ready", async () => {
     loadState();
     await buildSourceIndex();
     hand = weightedSuggestions(HAND_SIZE);
-    game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand };
+    game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand, pendingSceneCount: pendingScenePlanCount };
   }
   migrateDeliveredOpportunities().catch(error => console.error(`${MODULE_ID} | Opportunity migration failed`, error));
 });
@@ -1060,5 +1224,9 @@ Hooks.on("updateSetting", setting => {
     if (!game.settings.get(MODULE_ID, ENABLED_SETTING)) panelOpen = false;
     renderPanel();
   }
+});
+Hooks.on("canvasReady", () => { if (panelOpen) renderPanel(); });
+Hooks.on("updateScene", (scene, changes) => {
+  if (panelOpen && scene.id === planningScene()?.id && foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.${SCENE_PLAN_FLAG}`)) renderPanel();
 });
 

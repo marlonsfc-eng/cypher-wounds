@@ -1,5 +1,12 @@
 # Cypher 2 Toolkit
 
+## v0.22.0
+
+- Adiciona um Plano da Cena ao painel de Oportunidades de Cypher, salvo diretamente na Scene ativa.
+- Permite preparar gatilho narrativo, personagem, Pool e custo; todos os campos são opcionais e podem ser definidos no momento da oferta.
+- Inclui reordenação por arrastar, oferta com campos pré-preenchidos e estados pendente, oferecido, aceito, recusado, entregue ou ignorado.
+- Exibe no painel Wounds & Resources um contador discreto das oportunidades pendentes da cena.
+
 ## v0.4.1
 
 - Corrige o uso de habilidades importadas no Foundry VTT 13.

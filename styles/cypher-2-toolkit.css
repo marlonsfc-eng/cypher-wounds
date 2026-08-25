@@ -1260,7 +1260,7 @@
 
 .c2t-opportunity-card > footer {
   display: grid;
-  grid-template-columns: 1fr repeat(2, 34px);
+  grid-template-columns: 1fr repeat(3, 34px);
   gap: 5px;
   margin-top: auto;
   padding-top: 7px;
@@ -1268,7 +1268,7 @@
 }
 
 .c2t-opportunity-card > footer.has-replace {
-  grid-template-columns: 1fr repeat(3, 34px);
+  grid-template-columns: 1fr repeat(4, 34px);
 }
 
 .c2t-opportunity-card > footer button {
@@ -1385,6 +1385,25 @@
   margin: 0;
 }
 
+.c2t-scene-plan-list { display: grid; gap: 7px; }
+.c2t-scene-plan-entry { display: grid; grid-template-columns: 18px 50px minmax(0, 1fr) auto; align-items: center; gap: 9px; min-height: 76px; padding: 8px; border: 1px solid rgba(255, 255, 255, .13); border-radius: 7px; background: rgba(255, 255, 255, .045); transition: border-color .12s ease, opacity .12s ease, transform .12s ease; }
+.c2t-scene-plan-entry.dragging { opacity: .42; }
+.c2t-scene-plan-entry.drop-target { border-color: #e7ad4c; transform: translateY(2px); }
+.c2t-scene-plan-entry.status-skipped, .c2t-scene-plan-entry.status-rejected { opacity: .62; }
+.c2t-scene-plan-handle { color: rgba(255, 255, 255, .38); cursor: grab; text-align: center; }
+.c2t-scene-plan-entry > img { width: 50px; height: 50px; object-fit: cover; border: 1px solid rgba(243, 179, 75, .38); border-radius: 4px; }
+.c2t-scene-plan-content { min-width: 0; }
+.c2t-scene-plan-content header { display: flex; align-items: center; gap: 7px; }
+.c2t-scene-plan-content header strong { color: #f3d49e; font-size: 14px; }
+.c2t-scene-plan-content header span { padding: 1px 6px; color: #eed5a4; border-radius: 8px; background: rgba(172, 112, 48, .2); font-size: 9px; text-transform: uppercase; }
+.c2t-scene-plan-content p { margin: 4px 0; color: rgba(255, 255, 255, .78); font-size: 12px; line-height: 1.3; }
+.c2t-scene-plan-content small { color: rgba(255, 255, 255, .53); font-size: 10px; }
+.c2t-scene-plan-content small i:not(:first-child) { margin-left: 9px; }
+.c2t-scene-plan-actions { display: grid; grid-template-columns: minmax(104px, auto) repeat(3, 32px); gap: 4px; }
+.c2t-scene-plan-actions button { min-width: 0; height: 31px; margin: 0; padding: 0 6px; color: rgba(255, 255, 255, .84); border-color: rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .05); font-size: 11px; }
+.c2t-scene-plan-actions button:first-child { color: #ffe0aa; border-color: rgba(243, 179, 75, .44); }
+.c2t-scene-plan-form > .hint { margin: 0 0 10px; }
+
 .c2t-opportunity-footer button {
   width: auto;
   height: 22px;
@@ -1498,6 +1517,19 @@
   .c2t-opportunity-view-tabs button {
     flex: 1 1 auto;
   }
+
+  .c2t-scene-plan-entry {
+    grid-template-columns: 18px 42px 1fr;
+  }
+
+  .c2t-scene-plan-entry > img {
+    width: 42px;
+    height: 42px;
+  }
+
+  .c2t-scene-plan-actions {
+    grid-column: 2 / -1;
+  }
 }
 
 .c2t-hidden-cypher-type,
@@ -1572,7 +1604,27 @@
 }
 
 .c2t-open-opportunities {
+  position: relative;
   color: #f3b34b;
+}
+
+.c2t-opportunity-plan-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  color: #17120c;
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 8px;
+  background: #f3b34b;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 13px;
+  pointer-events: none;
 }
 
 .c2t-cypher-offer-actions {

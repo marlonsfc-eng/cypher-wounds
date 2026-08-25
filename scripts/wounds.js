@@ -1130,6 +1130,9 @@ function makeUniversalWoundApplicator() {
   $("#c2t-universal-wound-applicator").remove();
   if (!game.settings.get(MODULE_ID, "universalWoundApplicator")) return;
 
+  const plannedOpportunities = Array.isArray(canvas?.scene?.getFlag?.(MODULE_ID, "cypherOpportunityPlan"))
+    ? canvas.scene.getFlag(MODULE_ID, "cypherOpportunityPlan").filter(item => item?.status === "pending" || item?.status === "offered").length
+    : 0;
   const panel = $(`
     <section id="c2t-universal-wound-applicator" class="c2t-wound-applicator">
       <header class="c2t-applicator-header">
@@ -1137,6 +1140,7 @@ function makeUniversalWoundApplicator() {
         <div class="c2t-applicator-header-actions">
           ${game.user.isGM && game.settings.get(MODULE_ID, "cypherOpportunityAssistant") ? `<button type="button" class="c2t-open-opportunities" title="${game.i18n.localize("C2T.Opportunities.OpenAssistant")}">
             <i class="fa-solid fa-wand-sparkles"></i>
+            <span class="c2t-opportunity-plan-count" ${plannedOpportunities ? "" : "hidden"}>${plannedOpportunities}</span>
           </button>` : ""}
           ${game.user.isGM ? `<button type="button" class="c2t-random-pc" title="${game.i18n.localize("C2T.RandomPC.ButtonHint")}">
             <i class="fa-solid fa-dice"></i>
@@ -1245,6 +1249,7 @@ Hooks.on("controlToken", refreshUniversalApplicator);
 Hooks.on("targetToken", refreshUniversalApplicator);
 Hooks.on("updateUser", refreshUniversalApplicator);
 Hooks.on("c2tRefreshResourcePanel", refreshUniversalApplicator);
+Hooks.on("c2tScenePlanChanged", makeUniversalWoundApplicator);
 
 Hooks.on("refreshToken", token => refreshTokenWounds(token).catch(console.error));
 Hooks.on("drawToken", token => refreshTokenWounds(token).catch(console.error));
