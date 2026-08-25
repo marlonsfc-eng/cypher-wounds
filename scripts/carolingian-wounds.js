@@ -2,8 +2,9 @@ const MODULE_ID = "cypher-2-toolkit";
 const CAROLINGIAN_ID = "crlngn-ui";
 const VISIBILITY_SETTING = "carolingianWoundsVisibility";
 const ENABLED_SETTING = "carolingianWounds";
-const TRACKER_SELECTOR = "#combat-popout .combat-tracker";
+const TRACKER_SELECTOR = "#combat-popout .combat-tracker, #combat-popout [data-application-part='combat-tracker']";
 let carouselObserver = null;
+let lifecycleObserver = null;
 let observedTracker = null;
 let refreshTimer = null;
 let retryCount = 0;
@@ -64,8 +65,22 @@ async function renderCard(card, combat) {
     badge.textContent = `H${hindrance}`;
     strip.appendChild(badge);
   }
-  const resource = card.querySelector(":scope > .token-resource");
+  const resource = card.querySelector(":scope > .token-resource, :scope > .combatant-resource, .token-resource");
   resource ? resource.before(strip) : card.appendChild(strip);
+}
+
+function nodeAffectsCarousel(node) {
+  if (!(node instanceof HTMLElement) || node.classList.contains("c2t-carousel-wounds")) return false;
+  return node.matches("#combat-popout, .combat-tracker, li.combatant[data-combatant-id], [data-combatant-id].combatant") ||
+    Boolean(node.querySelector("#combat-popout, .combat-tracker, li.combatant[data-combatant-id], [data-combatant-id].combatant"));
+}
+
+function observeCarouselLifecycle() {
+  lifecycleObserver?.disconnect();
+  lifecycleObserver = new MutationObserver(mutations => {
+    if (mutations.some(mutation => [...mutation.addedNodes, ...mutation.removedNodes].some(nodeAffectsCarousel))) scheduleRefresh(40);
+  });
+  lifecycleObserver.observe(document.body, {childList: true, subtree: true});
 }
 
 function observeTracker(tracker) {
@@ -86,6 +101,8 @@ async function refreshCarouselWounds() {
   if (!integrationEnabled()) {
     carouselObserver?.disconnect();
     observedTracker = null;
+    lifecycleObserver?.disconnect();
+    lifecycleObserver = null;
     document.querySelectorAll(".c2t-carousel-wounds").forEach(element => element.remove());
     return;
   }
@@ -93,16 +110,18 @@ async function refreshCarouselWounds() {
   if (!tracker) {
     carouselObserver?.disconnect();
     observedTracker = null;
-    if (retryCount < 5) {
+    if (!lifecycleObserver) observeCarouselLifecycle();
+    if (retryCount < 20) {
       retryCount += 1;
       scheduleRefresh(250);
     }
     return;
   }
   retryCount = 0;
+  if (!lifecycleObserver) observeCarouselLifecycle();
   carouselObserver?.disconnect();
   const combat = game.combat;
-  const cards = Array.from(tracker.querySelectorAll(":scope > li.combatant[data-combatant-id]"));
+  const cards = Array.from(tracker.querySelectorAll("li.combatant[data-combatant-id], [data-combatant-id].combatant"));
   await Promise.all(cards.map(card => renderCard(card, combat)));
   observeTracker(tracker);
 }
@@ -143,7 +162,10 @@ Hooks.once("init", () => {
 });
 
 Hooks.once("ready", () => {
-  if (carolingianActive()) scheduleRefresh(150);
+  if (carolingianActive()) {
+    observeCarouselLifecycle();
+    scheduleRefresh(150);
+  }
 });
 
 Hooks.on("renderCombatTracker", () => scheduleRefresh(100));

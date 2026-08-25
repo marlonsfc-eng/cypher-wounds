@@ -45,7 +45,7 @@ O módulo acrescenta a personagens:
 - escalonamento automático quando uma trilha está cheia;
 - cálculo da penalidade global;
 - Active Effect informativo;
-- botão na ficha e no HUD do token;
+- botão na ficha e painel universal de Wounds & Resources;
 - limites configuráveis por personagem;
 - opção de marcar o token como derrotado.
 
@@ -360,6 +360,16 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Acompanha reconstruções e clones produzidos pelo carousel sem modificar arquivos do Carolingian UI.
 - Permite escolher a visibilidade entre todos, Mestre e donos, ou somente Mestre.
 - Mantém a barra de recurso/Health configurada no Carolingian funcionando separadamente.
+
+## v0.20.0
+
+- Torna opcional a descrição narrativa ao oferecer uma Combat Opportunity.
+- Entrega oportunidades como Abilities na categoria `Combat Opportunities` e migra automaticamente as cópias antigas que ainda estavam em Equipment.
+- O primeiro uso registra a oportunidade como conhecida; usos posteriores pedem confirmação e custam 1 XP.
+- Remove da ficha os controles visuais Subtle/Manifest e adiciona aos cyphers um botão para publicar o Item e seu efeito no chat.
+- Remove todos os atalhos de wounds do Token HUD; o painel Wounds & Resources permanece como controle central.
+- Substitui o cartão Fast/Normal/Last do chat por popups sincronizados para jogadores e Mestre.
+- Torna a integração do Carolingian resiliente à criação tardia, substituição e clonagem dos cartões do Combat Carousel.
 
 
 ## v0.9.1

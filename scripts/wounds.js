@@ -460,7 +460,6 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, "chatAnnouncements", { name: "CW.Settings.Chat.Name", hint: "CW.Settings.Chat.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "markDefeated", { name: "CW.Settings.Defeated.Name", hint: "CW.Settings.Defeated.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "playersEdit", { name: "CW.Settings.Players.Name", hint: "CW.Settings.Players.Hint", scope: "world", config: true, type: Boolean, default: true });
-  game.settings.register(MODULE_ID, "tokenHUD", { name: "CW.Settings.TokenHUD.Name", hint: "CW.Settings.TokenHUD.Hint", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "universalWoundApplicator", { name: "Aplicador universal de wounds", hint: "Exibe um painel flutuante para aplicar e curar wounds sem abrir a ficha.", scope: "world", config: true, type: Boolean, default: true });
   game.settings.register(MODULE_ID, "tokenCircles", { name: "CW.Settings.TokenCircles.Name", hint: "Deprecated: wound indicators are now shown in the universal wound panel.", scope: "world", config: false, type: Boolean, default: false });
   game.settings.register(MODULE_ID, "tokenWoundDisplay", { name: "Wounds: visualização no token", hint: "Compacta mantém os indicadores dentro do token; trilhas preserva os círculos externos antigos.", scope: "world", config: true, type: String, choices: { compact: "Medidores compactos", tracks: "Trilhas de círculos (legado)" }, default: "compact" });
@@ -878,71 +877,6 @@ Hooks.on("renderActorSheet", (app, html) => {
   simplifyDamageRecoverySection(app, html);
   injectRecoveryWorkflows(app, html);
 });
-
-Hooks.on("renderTokenHUD", async (hud, html, data) => {
-  if (!game.settings.get(MODULE_ID, "tokenHUD")) return;
-
-  // Foundry v13 exposes the Token through hud.object. Older code relied on
-  // data._id, which is not consistently present in v13.
-  const token =
-    hud?.object ??
-    canvas?.tokens?.get?.(data?._id) ??
-    canvas?.tokens?.get?.(data?.id) ??
-    null;
-
-  const actor = token?.actor ?? token?.document?.actor ?? null;
-  if (!actor || actor.type === "npc") return;
-  if (!(game.user.isGM || actor.isOwner)) return;
-
-  const root = html?.find ? html : $(html);
-  const rightColumn = root.find(".col.right");
-  const leftColumn = root.find(".col.left");
-  const column = rightColumn.length ? rightColumn : leftColumn;
-  if (!column.length) {
-    console.warn(`${MODULE_ID} | Token HUD column not found`, {hud, html, data});
-    return;
-  }
-
-  // Avoid duplicates when the HUD is re-rendered.
-  root.find(".cypher-wounds-hud, .c2t-quick-wound").remove();
-
-  const wounds = await getData(actor);
-
-  const tracker = $(`
-    <div class="control-icon cypher-wounds-hud ${hindrance(wounds) ? "active" : ""}"
-         title="Abrir controle de wounds">
-      <i class="fa-solid fa-heart-crack"></i>
-    </div>
-  `);
-  tracker.on("click", event => {
-    event.preventDefault();
-    event.stopPropagation();
-    openTracker(actor);
-  });
-  column.append(tracker);
-
-  const quick = [
-    ["minor", "I", "Marcar Minor wound"],
-    ["moderate", "II", "Marcar Moderate wound"],
-    ["major", "III", "Marcar Major wound"]
-  ];
-
-  for (const [severity, mark, title] of quick) {
-    const button = $(`
-      <div class="control-icon c2t-quick-wound ${severity}" title="${title}">
-        <span>${mark}</span>
-      </div>
-    `);
-    button.on("click", async event => {
-      event.preventDefault();
-      event.stopPropagation();
-      await takeWound(actor, severity);
-    });
-    column.append(button);
-  }
-});
-
-
 
 function universalSeverityLabel(severity) {
   return ({minor: "Minor", moderate: "Moderate", major: "Major"})[severity] ?? severity;

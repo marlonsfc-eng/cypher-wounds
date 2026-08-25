@@ -6,6 +6,7 @@ const HISTORY_LIMIT = 18;
 const HAND_SIZE = 3;
 const SOCKET_CHANNEL = `module.${MODULE_ID}`;
 const OFFER_FLAG = "cypherOffer";
+const OPPORTUNITY_CATEGORY = "Combat Opportunities";
 
 const CONTEXTS = ["combat", "defense", "social", "stealth", "exploration", "chase", "recovery", "knowledge", "survival", "dramatic"];
 
@@ -340,31 +341,66 @@ async function notifyInsufficientPool(actor, pool, cost, current) {
 function opportunityItemDescription(description, opportunity) {
   const container = document.createElement("div");
   container.innerHTML = String(description ?? "");
+  container.querySelectorAll(".c2t-acquired-opportunity").forEach(element => element.remove());
   for (const element of Array.from(container.querySelectorAll("p, div"))) {
     if (/^\s*Explanation\s*:/i.test(element.textContent ?? "")) element.remove();
   }
   const narrative = escapeHtml(opportunity.narrative).replace(/\n/g, "<br>");
-  return `<div class="c2t-acquired-opportunity"><p><strong>${t("Narrative")}:</strong> ${narrative}</p><p><strong>${t("AcquisitionCost")}:</strong> ${opportunity.cost} ${opportunityPoolLabel(opportunity.pool)} (${t("EdgeIgnored")})</p></div>${container.innerHTML}`;
+  const narrativeBlock = narrative ? `<p><strong>${t("Narrative")}:</strong> ${narrative}</p>` : "";
+  return `<div class="c2t-acquired-opportunity">${narrativeBlock}<p><strong>${t("AcquisitionCost")}:</strong> ${opportunity.cost} ${opportunityPoolLabel(opportunity.pool)} (${t("EdgeIgnored")})</p></div>${container.innerHTML}`;
 }
 
 function offerChatContent(entry, actor, item, narrative, pool, cost, interactive = false) {
   const link = item?.uuid ? `@UUID[${item.uuid}]{${entry.name}}` : `<strong>${entry.name}</strong>`;
   const actions = interactive ? `<div class="c2t-cypher-offer-actions"><button type="button" data-c2t-offer-action="accept"><i class="fa-solid fa-check"></i> ${t("Accept")}</button><button type="button" data-c2t-offer-action="reject"><i class="fa-solid fa-xmark"></i> ${t("Reject")}</button></div>` : "";
   const narrativeHtml = escapeHtml(narrative).replace(/\n/g, "<br>");
-  return `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-wand-sparkles"></i> ${t("ChatTitle")}</h3><p>${t("ChatOffer", { actor: actor.name, cypher: link })}</p><p><em>${narrativeHtml}</em></p><p class="c2t-opportunity-cost"><strong>${t("OpportunityCost", {cost, pool: opportunityPoolLabel(pool)})}</strong> ${t("EdgeIgnored")}</p>${actions}</div>`;
+  const narrativeBlock = narrativeHtml ? `<p><em>${narrativeHtml}</em></p>` : "";
+  return `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-wand-sparkles"></i> ${t("ChatTitle")}</h3><p>${t("ChatOffer", { actor: actor.name, cypher: link })}</p>${narrativeBlock}<p class="c2t-opportunity-cost"><strong>${t("OpportunityCost", {cost, pool: opportunityPoolLabel(pool)})}</strong> ${t("EdgeIgnored")}</p>${actions}</div>`;
+}
+
+function opportunityAbilityData(item, opportunity) {
+  const original = item.toObject();
+  const description = opportunityItemDescription(
+    foundry.utils.getProperty(original, "system.description") ?? foundry.utils.getProperty(original, "system.basic.description"),
+    opportunity
+  );
+  const moduleFlags = foundry.utils.mergeObject(original.flags?.[MODULE_ID] ?? {}, {
+    randomCypher: true,
+    category: "abilities",
+    opportunity: {
+      ...opportunity,
+      sourceUuid: opportunity.sourceUuid ?? item.uuid ?? null,
+      acquiredAt: opportunity.acquiredAt ?? new Date().toISOString(),
+      usedOnce: Boolean(opportunity.usedOnce),
+      useCount: Math.max(0, Number(opportunity.useCount) || 0)
+    }
+  }, {inplace: false, overwrite: true});
+  return {
+    name: original.name,
+    type: "ability",
+    img: original.img,
+    system: {
+      version: 2,
+      description,
+      archived: Boolean(original.system?.archived),
+      favorite: Boolean(original.system?.favorite),
+      basic: {cost: opportunity.usedOnce ? "1" : "0", pool: opportunity.usedOnce ? "XP" : "Pool"},
+      settings: {
+        general: {sorting: OPPORTUNITY_CATEGORY, spellTier: "low", unmaskedForm: "Mask"},
+        rollButton: {pool: "Pool", skill: "Practiced", assets: 0, effort1: 0, effort2: 0, effort3: 0, freeEffort: 0, stepModifier: "eased", additionalSteps: 0, additionalCost: 0, damage: 0, damagePerLOE: 3, teen: "", bonus: 0, macroUuid: "", macroExecuteAsGM: false}
+      }
+    },
+    flags: foundry.utils.mergeObject(original.flags ?? {}, {[MODULE_ID]: moduleFlags}, {inplace: false, overwrite: true})
+  };
 }
 
 async function cloneItemToActor(item, actor, opportunity = null) {
-  const data = item.toObject();
+  const data = opportunity ? opportunityAbilityData(item, opportunity) : item.toObject();
   delete data._id;
   delete data.folder;
   delete data.sort;
   delete data.ownership;
   delete data._stats;
-  if (opportunity) {
-    data.flags = foundry.utils.mergeObject(data.flags ?? {}, {[MODULE_ID]: {opportunity: {...opportunity, acquiredAt: new Date().toISOString()}}}, {inplace: false, overwrite: true});
-    foundry.utils.setProperty(data, "system.description", opportunityItemDescription(foundry.utils.getProperty(data, "system.description"), opportunity));
-  }
   const created = await actor.createEmbeddedDocuments("Item", [data]);
   return created[0] ?? null;
 }
@@ -372,7 +408,8 @@ async function cloneItemToActor(item, actor, opportunity = null) {
 async function sendDirectDeliveryNotice(actor, item, narrative, pool, cost) {
   const link = item?.uuid ? `@UUID[${item.uuid}]{${item.name}}` : `<strong>${item.name}</strong>`;
   const narrativeHtml = escapeHtml(narrative).replace(/\n/g, "<br>");
-  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-gift"></i> ${t("ReceivedTitle")}</h3><p>${t("ReceivedDirect", {actor: actor.name, cypher: link})}</p><p><em>${narrativeHtml}</em></p><p class="c2t-opportunity-cost">${t("CostPaid", {cost, pool: opportunityPoolLabel(pool)})} ${t("EdgeIgnored")}</p></div>`, {async: true});
+  const narrativeBlock = narrativeHtml ? `<p><em>${narrativeHtml}</em></p>` : "";
+  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-gift"></i> ${t("ReceivedTitle")}</h3><p>${t("ReceivedDirect", {actor: actor.name, cypher: link})}</p>${narrativeBlock}<p class="c2t-opportunity-cost">${t("CostPaid", {cost, pool: opportunityPoolLabel(pool)})} ${t("EdgeIgnored")}</p></div>`, {async: true});
   await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content, whisper: actorAudience(actor)});
 }
 
@@ -393,7 +430,6 @@ async function executeOffer(entry, html) {
   const pool = String(html.find("[name=pool]").val() ?? "might");
   const cost = Math.max(0, Math.trunc(Number(html.find("[name=cost]").val()) || 0));
   if (!actor) return ui.notifications.warn(t("ChooseActor")), false;
-  if (mode !== "remind" && !narrative) return ui.notifications.warn(t("NarrativeRequired")), false;
   const item = await resolveSource(entry);
   if (!item) return ui.notifications.warn(t("ItemNotFound")), false;
   if (mode === "add") {
@@ -508,6 +544,124 @@ function bindOfferMessage(message, html) {
       await dispatchDecision({messageId: message.id, decision: button.dataset.c2tOfferAction});
     });
   }
+}
+
+function isOpportunityItem(item) {
+  return item?.type === "ability" && Boolean(item.getFlag?.(MODULE_ID, "opportunity"));
+}
+
+function itemDescription(item) {
+  return String(item?.system?.description ?? item?.system?.basic?.description ?? "");
+}
+
+async function publishItemToChat(actor, item, {opportunity = false} = {}) {
+  const link = `@UUID[${item.uuid}]{${item.name}}`;
+  const description = itemDescription(item);
+  const heading = opportunity ? t("UseTitle") : t("CypherChatTitle");
+  const content = await TextEditor.enrichHTML(`<article class="c2t-item-chat ${opportunity ? "opportunity" : "cypher"}"><h3><i class="fa-solid ${opportunity ? "fa-bolt" : "fa-wand-magic-sparkles"}"></i> ${heading}</h3><p>${link}</p>${description ? `<div class="c2t-item-chat-description">${description}</div>` : ""}</article>`, {async: true});
+  return ChatMessage.create({speaker: ChatMessage.getSpeaker({actor}), content});
+}
+
+function confirmXpUse(actor, item) {
+  return new Promise(resolve => {
+    let answered = false;
+    new Dialog({
+      title: t("RepeatTitle", {cypher: item.name}),
+      content: `<p>${t("RepeatConfirm", {actor: actor.name, cypher: item.name})}</p>`,
+      buttons: {
+        use: {icon: '<i class="fa-solid fa-star"></i>', label: t("SpendXp"), callback: () => { answered = true; resolve(true); }},
+        cancel: {label: t("Cancel"), callback: () => { answered = true; resolve(false); }}
+      },
+      default: "use",
+      close: () => { if (!answered) resolve(false); }
+    }, {width: 410}).render(true);
+  });
+}
+
+async function useOpportunity(actor, item) {
+  if (!isOpportunityItem(item) || !(game.user.isGM || item.isOwner || actor.isOwner)) return;
+  const opportunity = foundry.utils.deepClone(item.getFlag(MODULE_ID, "opportunity") ?? {});
+  const repeated = Boolean(opportunity.usedOnce);
+  const currentXp = Math.max(0, Number(actor.system?.basic?.xp) || 0);
+  if (repeated) {
+    if (currentXp < 1) return ui.notifications.warn(t("NotEnoughXp", {actor: actor.name}));
+    if (!await confirmXpUse(actor, item)) return;
+  }
+  let xpSpent = false;
+  try {
+    if (repeated) {
+      await actor.update({"system.basic.xp": currentXp - 1});
+      xpSpent = true;
+    }
+    await publishItemToChat(actor, item, {opportunity: true});
+    opportunity.usedOnce = true;
+    opportunity.known = true;
+    opportunity.useCount = Math.max(0, Number(opportunity.useCount) || 0) + 1;
+    opportunity.lastUsedAt = new Date().toISOString();
+    await item.update({
+      [`flags.${MODULE_ID}.opportunity`]: opportunity,
+      "system.basic.cost": "1",
+      "system.basic.pool": "XP",
+      "system.settings.general.sorting": OPPORTUNITY_CATEGORY
+    });
+    ui.notifications.info(repeated ? t("XpSpent", {cypher: item.name}) : t("NowKnown", {cypher: item.name}));
+  } catch (error) {
+    if (xpSpent) await actor.update({"system.basic.xp": currentXp});
+    throw error;
+  }
+}
+
+async function migrateDeliveredOpportunities() {
+  if (!game.user.isGM || primaryActiveGm()?.id !== game.user.id) return;
+  let migrated = 0;
+  for (const actor of game.actors ?? []) {
+    const legacy = Array.from(actor.items ?? []).filter(item => item.type === "cypher" && item.getFlag?.(MODULE_ID, "opportunity"));
+    for (const item of legacy) {
+      const opportunity = foundry.utils.deepClone(item.getFlag(MODULE_ID, "opportunity") ?? {});
+      const created = await actor.createEmbeddedDocuments("Item", [opportunityAbilityData(item, opportunity)]);
+      if (!created.length) continue;
+      await actor.deleteEmbeddedDocuments("Item", [item.id]);
+      migrated += 1;
+    }
+  }
+  if (migrated) ui.notifications.info(t("Migrated", {count: migrated}));
+}
+
+function injectItemControls(app, html) {
+  const actor = app?.actor;
+  if (!actor) return;
+  const root = html?.find ? html : $(html);
+  root.find("li.item[data-item-id]").each((_index, element) => {
+    const row = $(element);
+    const item = actor.items.get(String(row.attr("data-item-id") ?? row.data("item-id")));
+    if (!item) return;
+    row.find(".c2t-opportunity-use, .c2t-cypher-chat-link").remove();
+    const controls = row.find(".item-controls").first();
+    if (item.type === "cypher") {
+      row.find("a[title], button[title], [data-tooltip]").each((_i, control) => {
+        const label = `${control.getAttribute("title") ?? ""} ${control.getAttribute("data-tooltip") ?? ""}`;
+        if (/subtle|manifest|sutil|sútil|manifesto/i.test(label)) control.classList.add("c2t-hidden-cypher-type");
+      });
+      const link = $('<a class="item-control c2t-cypher-chat-link" title="'+t("LinkToChat")+'"><i class="fa-solid fa-message"></i></a>');
+      link.on("click", async event => {
+        event.preventDefault();
+        event.stopPropagation();
+        await publishItemToChat(actor, item);
+      });
+      controls.length ? controls.prepend(link) : row.append(link);
+      return;
+    }
+    if (!isOpportunityItem(item)) return;
+    row.find(".item-roll, .c2t-native-fallback").addClass("c2t-hidden-opportunity-roll");
+    const repeated = Boolean(item.getFlag(MODULE_ID, "opportunity")?.usedOnce);
+    const use = $(`<a class="item-control c2t-opportunity-use" title="${t(repeated ? "UseForXp" : "UseFirst")}"><i class="fa-solid ${repeated ? "fa-star" : "fa-bolt"}"></i><span>${repeated ? "1 XP" : ""}</span></a>`);
+    use.on("click", async event => {
+      event.preventDefault();
+      event.stopPropagation();
+      await useOpportunity(actor, item);
+    });
+    controls.length ? controls.prepend(use) : row.append(use);
+  });
 }
 
 async function overflowChat(actor, key, data = {}) {
@@ -701,6 +855,7 @@ Hooks.once("ready", async () => {
     hand = weightedSuggestions(HAND_SIZE);
     game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand };
   }
+  migrateDeliveredOpportunities().catch(error => console.error(`${MODULE_ID} | Opportunity migration failed`, error));
 });
 
 function refreshForStandaloneItem(item) {
@@ -714,6 +869,7 @@ Hooks.on("updateItem", refreshForStandaloneItem);
 Hooks.on("updateItem", scheduleArchiveChangeCheck);
 Hooks.on("deleteItem", refreshForStandaloneItem);
 Hooks.on("renderChatMessage", bindOfferMessage);
+Hooks.on("renderActorSheet", injectItemControls);
 Hooks.on("updateActor", scheduleLimitChangeCheck);
 Hooks.on("updateSetting", setting => {
   if (setting?.key === `${MODULE_ID}.${ENABLED_SETTING}`) {

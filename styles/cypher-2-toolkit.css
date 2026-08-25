@@ -74,8 +74,6 @@
 .cypher-wounds-dialog .cw-status { padding:.55rem; border-radius:5px; background:rgba(127,127,127,.12); text-align:center; }
 .cypher-wounds-dialog button { cursor:pointer; }
 .cypher-wounds-dialog .cw-danger { color:#b00020; font-weight:700; }
-.cypher-wounds-hud { font-size:18px; }
-.cypher-wounds-hud.active { color:#c33; text-shadow:0 0 5px #000; }
 
 /* Content importer */
 .c2t-importer-form { padding:8px; }
@@ -123,18 +121,6 @@
 .c2t-special-17,.c2t-special-18{border-color:rgba(55,120,180,.75)}.c2t-special-19,.c2t-special-20{border-color:rgba(45,145,80,.8)}
 .c2t-special-choice{display:grid;gap:.4rem}.c2t-special-choice>p{margin:0 0 .25rem}.c2t-special-choice button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;height:auto;min-height:44px;padding:.45rem .6rem}.c2t-special-choice button span{font-size:.8rem;opacity:.8;white-space:normal}
 
-
-/* Quick wound controls in the Token HUD */
-.c2t-quick-wound {
-  font-weight: 800;
-  font-size: 11px;
-  line-height: 36px;
-  text-align: center;
-}
-.c2t-quick-wound.minor { color: #4ed7e5; }
-.c2t-quick-wound.moderate { color: #ffb23e; }
-.c2t-quick-wound.major { color: #ff4f78; }
-.c2t-quick-wound:hover { text-shadow: 0 0 5px currentColor; }
 
 /* NPC damage-to-wound conversion card */
 .c2t-npc-wound-conversion {
@@ -1311,7 +1297,8 @@
 }
 
 /* v0.19.0 - Carolingian UI Combat Carousel wound indicators */
-#combat-popout .combat-tracker > li.combatant > .c2t-carousel-wounds {
+#combat-popout .combat-tracker li.combatant > .c2t-carousel-wounds,
+#combat-popout [data-combatant-id].combatant > .c2t-carousel-wounds {
   position: absolute;
   z-index: 12;
   left: 3px;
@@ -1327,7 +1314,8 @@
   line-height: 1;
 }
 
-#combat-popout .combat-tracker > li.combatant > .c2t-carousel-wounds::before {
+#combat-popout .combat-tracker li.combatant > .c2t-carousel-wounds::before,
+#combat-popout [data-combatant-id].combatant > .c2t-carousel-wounds::before {
   content: "";
   position: absolute;
   z-index: -1;
@@ -1384,8 +1372,40 @@
   font-weight: 900;
 }
 
-#combat-popout .combat-tracker > li.combatant.crlngn-clone > .c2t-carousel-wounds {
+#combat-popout .combat-tracker li.combatant.crlngn-clone > .c2t-carousel-wounds {
   pointer-events: none;
+}
+
+.c2t-hidden-cypher-type,
+.c2t-hidden-opportunity-roll {
+  display: none !important;
+}
+
+.c2t-opportunity-use,
+.c2t-cypher-chat-link {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 3px;
+  width: auto !important;
+}
+
+.c2t-opportunity-use span {
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.c2t-item-chat > h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+
+.c2t-item-chat-description {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(0, 0, 0, .18);
 }
 
 .c2t-random-pc-form > p {
@@ -1615,6 +1635,11 @@
   border: 1px solid rgba(107, 82, 52, .48);
   border-radius: 5px;
   overflow: hidden;
+}
+
+.dialog .c2t-combat-declaration {
+  max-height: 65vh;
+  overflow-y: auto;
 }
 
 .c2t-combat-declaration > header {
