@@ -341,6 +341,16 @@ Disabled the experimental automatic wound-hindrance hook because it could preven
 
 Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit → Importar campanha privada**, escolha o JSON local e clique em **Importar/Atualizar campanha**. Faça primeiro um backup do mundo. O usuário GM precisa ter permissão de upload de arquivos na hospedagem.
 
+## v0.18.0
+
+- Adiciona o Assistente de Combate para Foundry VTT 13.
+- No início de cada rodada, publica uma declaração Fast/Normal/Last com botões controlados pelos donos dos personagens.
+- Reorganiza o fluxo real do Combat Tracker por categorias, preservando os valores de iniciativa e a ordem relativa dentro de cada grupo.
+- Resolve automaticamente quando todos respondem; o Mestre pode resolver com respostas pendentes, que assumem Normal.
+- Permite reabrir as escolhas e retorna imediatamente à ordem normal enquanto a declaração está aberta.
+- Mostra indicadores Fast e Last no Combat Tracker e publica um lembrete compacto no início de cada turno.
+- Inclui configurações separadas para declarações, NPCs e lembretes.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

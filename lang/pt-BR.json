@@ -294,7 +294,31 @@
   "C2T.Opportunities.Prompt.Recovery": "Um instante para respirar, uma lembrança, um segundo fôlego ou cuidado pode fazer {cypher} surgir da resiliência do personagem.",
   "C2T.Opportunities.Prompt.Knowledge": "Um fato lembrado, uma conexão repentina ou pista ignorada pode ser a expressão ficcional de {cypher}.",
   "C2T.Opportunities.Prompt.Survival": "O ambiente, o instinto ou uma preparação oportuna pode oferecer {cypher} como saída para o perigo imediato.",
-  "C2T.Opportunities.Prompt.Dramatic": "Em um momento decisivo, a sorte ou o impulso narrativo pode oferecer {cypher} sem exigir um objeto físico."
+  "C2T.Opportunities.Prompt.Dramatic": "Em um momento decisivo, a sorte ou o impulso narrativo pode oferecer {cypher} sem exigir um objeto físico.",
+  "C2T.Combat.Settings.Enabled.Name": "Ativar Assistente de Combate",
+  "C2T.Combat.Settings.Enabled.Hint": "Ativa declarações de rodada, organização Fast/Normal/Last e lembretes de turno.",
+  "C2T.Combat.Settings.Declarations.Name": "Perguntar Fast Action e Last Action",
+  "C2T.Combat.Settings.Declarations.Hint": "Publica uma declaração no início de cada rodada e organiza a ordem sem substituir a iniciativa rolada.",
+  "C2T.Combat.Settings.Npcs.Name": "Incluir NPCs nas declarações",
+  "C2T.Combat.Settings.Npcs.Hint": "Permite que o Mestre escolha Fast, Normal ou Last para NPCs. Desativado por padrão para manter o fluxo rápido.",
+  "C2T.Combat.Settings.Reminders.Name": "Publicar lembrete de início de turno",
+  "C2T.Combat.Settings.Reminders.Hint": "Mostra no chat o personagem ativo, sua categoria de ação e um resumo discreto dos wounds.",
+  "C2T.Combat.RoundDeclaration": "Rodada {round} — declaração de ações",
+  "C2T.Combat.DeclarationIntro": "Escolha quando seu personagem agirá nesta rodada. A iniciativa original decide a ordem dentro de cada grupo.",
+  "C2T.Combat.Fast": "Fast",
+  "C2T.Combat.Normal": "Normal",
+  "C2T.Combat.Last": "Last",
+  "C2T.Combat.Awaiting": "Aguardando",
+  "C2T.Combat.Progress": "{chosen}/{total} responderam",
+  "C2T.Combat.ResolvedStatus": "Ordem resolvida",
+  "C2T.Combat.ResolveNow": "Resolver agora",
+  "C2T.Combat.Reopen": "Reabrir escolhas",
+  "C2T.Combat.NoParticipants": "Não há participantes elegíveis nesta rodada.",
+  "C2T.Combat.NoActiveGm": "É necessário um Mestre ativo para registrar a escolha.",
+  "C2T.Combat.TurnOf": "Turno de {name}",
+  "C2T.Combat.RoundAndPhase": "Rodada {round} · {phase}",
+  "C2T.Combat.NoWounds": "Sem wounds",
+  "C2T.Combat.Hindrance": "Hindrance {value}"
 }
 
 
