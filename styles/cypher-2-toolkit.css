@@ -931,6 +931,7 @@
   border-radius: 10px;
   box-shadow: 0 12px 38px rgba(0, 0, 0, .62);
   overflow: hidden;
+  font-size: 14px;
 }
 
 .c2t-opportunity-header {
@@ -963,7 +964,7 @@
   padding: 1px 5px;
   border-radius: 8px;
   background: rgba(0, 0, 0, .35);
-  font-size: 10px;
+  font-size: 11px;
   opacity: .82;
 }
 
@@ -1029,7 +1030,7 @@
   border: 0;
   background: transparent;
   box-shadow: none;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .c2t-opportunity-search input:focus {
@@ -1063,7 +1064,7 @@
   border: 0;
   border-radius: 5px;
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .c2t-opportunity-view-tabs button.active {
@@ -1090,13 +1091,13 @@
 
 .c2t-opportunity-scene-tools > div:first-child strong {
   color: #edcf9b;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .c2t-opportunity-scene-tools > div:first-child small {
   margin-top: 2px;
   color: rgba(255, 255, 255, .55);
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .c2t-opportunity-contexts {
@@ -1115,7 +1116,7 @@
   border: 1px solid rgba(255, 255, 255, .18);
   border-radius: 12px;
   background: rgba(255, 255, 255, .05);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 23px;
 }
 
@@ -1137,7 +1138,7 @@
   color: rgba(255, 255, 255, .9);
   border-color: rgba(255, 255, 255, .2);
   background: rgba(255, 255, 255, .06);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .c2t-opportunity-hand {
@@ -1195,14 +1196,14 @@
 
 .c2t-opportunity-card > header strong {
   color: #f3d49e;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.2;
 }
 
 .c2t-opportunity-card > header small {
   margin-top: 2px;
   color: rgba(255, 255, 255, .62);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .c2t-opportunity-tags {
@@ -1217,14 +1218,14 @@
   color: #d8bf91;
   border-radius: 7px;
   background: rgba(172, 112, 48, .18);
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
 }
 
 .c2t-opportunity-card > p {
   margin: 6px 0;
   color: rgba(255, 255, 255, .82);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.42;
 }
 
@@ -1278,7 +1279,7 @@
   color: rgba(255, 255, 255, .9);
   border-color: rgba(255, 255, 255, .17);
   background: rgba(255, 255, 255, .055);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 30px;
 }
 
@@ -1344,7 +1345,7 @@
   align-items: center;
   justify-content: space-between;
   color: rgba(255, 255, 255, .5);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .c2t-opportunity-workspace > header {
@@ -1358,12 +1359,12 @@
 .c2t-opportunity-workspace > header h3 {
   margin: 0;
   color: #f0d39f;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .c2t-opportunity-workspace > header span {
   color: rgba(255, 255, 255, .55);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .c2t-opportunity-empty-state {

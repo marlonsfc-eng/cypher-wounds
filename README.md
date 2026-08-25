@@ -398,6 +398,12 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Inclui uma sugestão narrativa autoral e específica em português para cada um dos 86 cyphers, evitando traduções literais do campo `explanation`.
 - Permite destacar visualmente um card antes de oferecer, guardar ou consultar o Item correspondente.
 
+## v0.21.1
+
+- Torna os contextos filtros estritos das novas sugestões, em vez de apenas aumentarem probabilisticamente o peso de determinados cyphers.
+- Quando vários contextos estão ativos, cada sugestão precisa corresponder a pelo menos um deles.
+- Aumenta a tipografia dos cards, efeitos, ideias narrativas, filtros, abas e controles auxiliares.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

@@ -222,8 +222,11 @@ function contextLabel(context) {
 function weightedSuggestions(count = HAND_SIZE, excluded = []) {
   const blocked = new Set([...state.history, ...excluded].map(normalize));
   const saved = new Set(state.saved.map(normalize));
-  let pool = CATALOG.filter(entry => !blocked.has(normalize(entry.name)) && !saved.has(normalize(entry.name)));
-  if (pool.length < count) pool = CATALOG.filter(entry => !excluded.map(normalize).includes(normalize(entry.name)) && !saved.has(normalize(entry.name)));
+  const excludedNames = new Set(excluded.map(normalize));
+  const contextualCatalog = CATALOG.filter(entry => entry.tags.some(tag => state.contexts.includes(tag)));
+  const eligibleCatalog = contextualCatalog.length ? contextualCatalog : CATALOG;
+  let pool = eligibleCatalog.filter(entry => !blocked.has(normalize(entry.name)) && !saved.has(normalize(entry.name)));
+  if (pool.length < count) pool = eligibleCatalog.filter(entry => !excludedNames.has(normalize(entry.name)) && !saved.has(normalize(entry.name)));
   const selected = [];
   while (pool.length && selected.length < count) {
     const weighted = pool.map(entry => ({ entry, weight: 1 + entry.tags.filter(tag => state.contexts.includes(tag)).length * 6 + (cypherSources.has(normalize(entry.name)) ? 3 : 0) }));
