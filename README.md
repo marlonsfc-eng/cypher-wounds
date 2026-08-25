@@ -351,6 +351,16 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Mostra indicadores Fast e Last no Combat Tracker e publica um lembrete compacto no início de cada turno.
 - Inclui configurações separadas para declarações, NPCs e lembretes.
 
+## v0.19.0
+
+- Adiciona integração opcional com o Combat Carousel do Carolingian UI 4.x.
+- Mostra Minor, Moderate e Major Wounds como três indicadores compactos e coloridos em cada cartão de PC.
+- Exibe a Hindrance quando ela for maior que zero.
+- Atualiza os cartões imediatamente após wounds, alterações de capacidade, Items ou mudanças no combate.
+- Acompanha reconstruções e clones produzidos pelo carousel sem modificar arquivos do Carolingian UI.
+- Permite escolher a visibilidade entre todos, Mestre e donos, ou somente Mestre.
+- Mantém a barra de recurso/Health configurada no Carolingian funcionando separadamente.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

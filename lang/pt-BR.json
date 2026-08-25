@@ -318,7 +318,15 @@
   "C2T.Combat.TurnOf": "Turno de {name}",
   "C2T.Combat.RoundAndPhase": "Rodada {round} · {phase}",
   "C2T.Combat.NoWounds": "Sem wounds",
-  "C2T.Combat.Hindrance": "Hindrance {value}"
+  "C2T.Combat.Hindrance": "Hindrance {value}",
+  "C2T.Carolingian.Settings.Enabled.Name": "Mostrar wounds no Carolingian Combat Carousel",
+  "C2T.Carolingian.Settings.Enabled.Hint": "Adiciona indicadores compactos de Minor, Moderate e Major Wounds aos cartões do carousel quando o Carolingian UI está ativo.",
+  "C2T.Carolingian.Settings.Visibility.Name": "Visibilidade dos wounds no carousel",
+  "C2T.Carolingian.Settings.Visibility.Hint": "Define quem pode ver os indicadores de wounds adicionados aos cartões do Carolingian UI.",
+  "C2T.Carolingian.Settings.Visibility.All": "Todos",
+  "C2T.Carolingian.Settings.Visibility.Owners": "Mestre e donos do personagem",
+  "C2T.Carolingian.Settings.Visibility.GM": "Somente o Mestre",
+  "C2T.Carolingian.HindranceTitle": "Hindrance causada por wounds: {value}"
 }
 
 
