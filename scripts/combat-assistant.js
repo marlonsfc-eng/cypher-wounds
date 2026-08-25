@@ -5,6 +5,7 @@ const PHASES = Object.freeze({fast: 0, normal: 1, last: 2});
 const announcedTurns = new Set();
 const declarationDialogs = new Map();
 let originalComparator = null;
+let combatActionQueue = Promise.resolve();
 
 const t = (key, data = {}) => game.i18n.format(`C2T.Combat.${key}`, data);
 
@@ -106,7 +107,7 @@ function showCombatantPrompt(combat, combatant) {
   const choose = phase => {
     declarationDialogs.delete(key);
     dispatchCombatAction({action: "combatDeclare", combatId: combat.id, combatantId: combatant.id, phase});
-    ui.notifications.info(t("ChoiceConfirmed", {name: combatant.name, phase: phaseLabel(phase)}));
+    ui.notifications.info(t("ChoiceSent", {name: combatant.name, phase: phaseLabel(phase)}));
   };
   const dialog = new Dialog({
     title: t("CharacterDeclarationTitle", {name: combatant.name, round: combat.round}),
@@ -142,9 +143,7 @@ function showGmMonitor(combat, state) {
   const existing = declarationDialogs.get(key);
   if (existing) {
     existing.data.content = content;
-    const body = existing.element?.find?.(".dialog-content");
-    if (body?.length) body.html(content);
-    bindGmMonitor(existing, combat);
+    existing.render(true);
     return;
   }
   const dialog = new Dialog({
@@ -239,6 +238,15 @@ async function handleCombatAction(payload) {
   const combat = game.combats.get(payload.combatId);
   if (payload.action === "combatShowDeclaration") return showDeclarationDialog(combat);
   if (payload.action === "combatCloseDeclaration") return combat && closeDeclarationDialogs(combat.id);
+  if (payload.action === "combatDeclarationAccepted") {
+    if (!combat) return;
+    closeCombatantPrompt(combat.id, payload.combatantId);
+    if (payload.userId === game.user.id) {
+      const combatant = combat.combatants.get(payload.combatantId);
+      ui.notifications.info(t("ChoiceConfirmed", {name: combatant?.name ?? "", phase: phaseLabel(payload.phase)}));
+    }
+    return;
+  }
   if (!isCoordinator()) return;
   const user = game.users.get(payload.userId);
   const state = foundry.utils.deepClone(stateFor(combat));
@@ -250,14 +258,31 @@ async function handleCombatAction(payload) {
   if (!canChoose(combatant, user) || !participantCombatants(combat).some(entry => entry.id === combatant.id)) return;
   state.declarations[combatant.id] = payload.phase;
   await combat.setFlag(MODULE_ID, STATE_FLAG, state);
+  game.socket.emit(SOCKET_CHANNEL, {
+    action: "combatDeclarationAccepted",
+    combatId: combat.id,
+    combatantId: combatant.id,
+    phase: payload.phase,
+    userId: payload.userId
+  });
   broadcastDeclaration(combat);
   const participants = participantCombatants(combat);
   if (participants.length && participants.every(entry => state.declarations[entry.id])) await resolveDeclarations(combat);
 }
 
+function processCombatAction(payload) {
+  const mutatesState = ["combatDeclare", "combatResolve", "combatReopen"].includes(payload?.action);
+  if (!mutatesState || !isCoordinator()) return handleCombatAction(payload);
+  const task = combatActionQueue.then(() => handleCombatAction(payload));
+  combatActionQueue = task.catch(error => {
+    console.error(`${MODULE_ID} | Queued combat action failed`, error);
+  });
+  return task;
+}
+
 function dispatchCombatAction(data) {
   const payload = {...data, userId: game.user.id};
-  if (isCoordinator()) return handleCombatAction(payload);
+  if (isCoordinator()) return processCombatAction(payload);
   if (!primaryActiveGm()) return ui.notifications.warn(t("NoActiveGm"));
   game.socket.emit(SOCKET_CHANNEL, payload);
 }
@@ -318,7 +343,7 @@ Hooks.once("init", () => {
 
 Hooks.once("ready", () => {
   game.socket.on(SOCKET_CHANNEL, payload => {
-    if (String(payload?.action || "").startsWith("combat")) handleCombatAction(payload).catch(error => console.error(`${MODULE_ID} | Combat socket action failed`, error));
+    if (String(payload?.action || "").startsWith("combat")) processCombatAction(payload).catch(error => console.error(`${MODULE_ID} | Combat socket action failed`, error));
   });
   game.cypher2Toolkit = game.cypher2Toolkit ?? {};
   game.cypher2Toolkit.combat = {beginRound: () => beginRoundDeclaration(game.combat), resolve: () => resolveDeclarations(game.combat), reopen: () => reopenDeclarations(game.combat)};

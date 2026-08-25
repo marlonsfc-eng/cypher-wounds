@@ -319,6 +319,7 @@
   "C2T.Combat.DeclarationIntro": "Acompanhe as declarações. Ao resolver, respostas pendentes serão consideradas Normal.",
   "C2T.Combat.CharacterDeclarationTitle": "{name} — rodada {round}",
   "C2T.Combat.CharacterDeclarationIntro": "Escolha quando o personagem agirá. O botão selecionado confirma imediatamente a declaração.",
+  "C2T.Combat.ChoiceSent": "{name}: ação {phase} enviada ao Mestre.",
   "C2T.Combat.ChoiceConfirmed": "{name}: ação {phase} confirmada.",
   "C2T.Combat.ChooseNpcPhase": "Escolher ação de {name}",
   "C2T.Combat.Fast": "Fast",

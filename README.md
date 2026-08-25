@@ -378,6 +378,12 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Corrige atualizações assíncronas concorrentes que podiam repetir personagens várias vezes no painel Wounds & Resources.
 - Remove integralmente a integração de wounds com o Combat Carousel do Carolingian UI, preservando o carousel original sem indicadores adicionais.
 
+## v0.20.2
+
+- Serializa as respostas de declaração no cliente coordenador para impedir que confirmações simultâneas se sobrescrevam.
+- Força a renderização completa do monitor do Mestre depois de cada resposta, evitando contadores e estados visuais desatualizados.
+- Diferencia a notificação de envio da confirmação efetiva recebida pelo Mestre.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

@@ -319,6 +319,7 @@
   "C2T.Combat.DeclarationIntro": "Monitor the declarations. Pending answers are treated as Normal when resolved.",
   "C2T.Combat.CharacterDeclarationTitle": "{name} — round {round}",
   "C2T.Combat.CharacterDeclarationIntro": "Choose when the character acts. The selected button immediately confirms the declaration.",
+  "C2T.Combat.ChoiceSent": "{name}: {phase} action sent to the GM.",
   "C2T.Combat.ChoiceConfirmed": "{name}: {phase} action confirmed.",
   "C2T.Combat.ChooseNpcPhase": "Choose {name}'s action",
   "C2T.Combat.Fast": "Fast",
