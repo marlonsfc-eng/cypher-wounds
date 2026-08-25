@@ -390,6 +390,14 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Corrige a entrega real das declarações Fast/Normal/Last dos jogadores ao cliente do Mestre.
 - Habilita corretamente o mesmo canal já usado pelas decisões remotas de Combat Opportunities.
 
+## v0.21.0
+
+- Reformula o Assistente de Oportunidades como uma janela ampla com cards maiores, melhor contraste e layout responsivo em duas ou três colunas.
+- Adiciona navegação separada entre Sugestões, Catálogo completo e Guardados.
+- Adiciona busca instantânea por nome, contexto, efeito importado ou situação narrativa.
+- Inclui uma sugestão narrativa autoral e específica em português para cada um dos 86 cyphers, evitando traduções literais do campo `explanation`.
+- Permite destacar visualmente um card antes de oferecer, guardar ou consultar o Item correspondente.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

@@ -57,12 +57,102 @@ const CATALOG_ROWS = [
 ];
 
 const CATALOG = CATALOG_ROWS.map(([name, page, ...tags]) => ({ name, page, tags }));
+const NARRATIVE_IDEAS = new Map(Object.entries({
+  "Amazing effort": "Quando tudo parece exigir mais do que o corpo aguenta, o personagem encontra uma reserva inesperada de determinação.",
+  "Berserk": "A pressão da luta rompe o último freio: por alguns instantes, atacar parece mais importante do que se proteger.",
+  "Best tool": "Entre os objetos à mão, o personagem percebe justamente aquilo que pode resolver o problema — ainda que nunca tenha sido feito para isso.",
+  "Bleed": "O golpe encontra uma abertura pequena, mas decisiva, e deixa uma lesão que continua cobrando seu preço.",
+  "Burst of speed": "Uma rota se abre por um instante, e o personagem reage antes que alguém consiga fechá-la.",
+  "Calm sniper": "Em meio ao caos, tudo fica silencioso por um segundo e o alvo parece perfeitamente alinhado.",
+  "Collateral damage": "O impacto atinge muito mais do que o alvo: cenário, cobertura e posição tornam-se parte do ataque.",
+  "Combat enhancer": "O ritmo do confronto finalmente faz sentido, revelando uma maneira mais eficiente de lutar naquele momento.",
+  "Counterattack": "Ao se defender, o personagem percebe que o ataque adversário também deixou uma brecha perfeita para responder.",
+  "Crying jag": "Uma emoção represada vem à tona no pior — ou talvez no melhor — momento possível, mudando o tom da cena.",
+  "Deflect wound": "No instante do impacto, um movimento, obstáculo ou golpe de sorte transforma um ferimento sério em algo suportável.",
+  "Disarm": "A empunhadura vacila, o terreno atrapalha ou a guarda se abre: há uma chance clara de arrancar a arma do oponente.",
+  "Disease recovery": "O organismo finalmente reage ao que o debilitava, como se tivesse encontrado a resposta de que precisava.",
+  "Double attack": "Dois alvos se alinham, ou o primeiro movimento conduz naturalmente a um segundo golpe antes da reação inimiga.",
+  "Equipment cache": "Um esconderijo, compartimento esquecido ou resto de expedição contém exatamente o tipo de recurso que faltava.",
+  "Extended breath": "O personagem controla a respiração e descobre que ainda consegue resistir muito além do esperado.",
+  "Feat of strength": "A urgência transforma esforço em potência, permitindo mover, romper ou sustentar algo que parecia impossível.",
+  "Focus fire": "O personagem identifica o ponto que todos precisam atingir e coordena o ataque no instante certo.",
+  "Fortuitous moment": "Uma coincidência improvável reorganiza a cena e coloca a oportunidade certa ao alcance do personagem.",
+  "Fortunate fluke": "Algo dá certo pelo motivo errado — e, por sorte, o resultado é exatamente o necessário.",
+  "Get to the point": "Uma palavra, gesto ou detalhe corta toda a distração e leva a conversa diretamente ao que realmente importa.",
+  "Hamper foe": "O terreno, a postura ou um erro do adversário oferece uma forma simples de limitar seus próximos movimentos.",
+  "Horizon observer": "Ao olhar além do óbvio, o personagem percebe movimento, relevo ou sinais que revelam o que existe adiante.",
+  "Ignite": "Uma faísca, fonte de calor ou material vulnerável permite que o fogo surja exatamente onde fará diferença.",
+  "Improved acrobatics": "O ambiente oferece apoios e impulsos que transformam uma manobra arriscada em um movimento fluido.",
+  "Improved blocking": "O personagem entende o padrão do ataque e posiciona a defesa no lugar certo antes do impacto.",
+  "Improved charm": "Um detalhe em comum ou uma reação sincera cria uma conexão imediata com quem está ouvindo.",
+  "Improved climbing": "Fendas, saliências e apoios antes invisíveis formam uma rota clara para a subida.",
+  "Improved deception": "A situação fornece um detalhe verdadeiro que torna a mentira muito mais convincente.",
+  "Improved dexterity": "Por alguns instantes, mãos e reflexos acompanham o pensamento sem qualquer hesitação.",
+  "Improved disguising": "Luz, postura e pequenos elementos do ambiente completam o disfarce melhor do que qualquer preparação.",
+  "Improved dodging": "O personagem antecipa a trajetória do perigo e já está saindo do caminho quando ele chega.",
+  "Improved driving": "A máquina responde perfeitamente, e o terreno parece indicar a manobra que ninguém mais tentaria.",
+  "Improved escaping": "Uma falha na contenção ou um instante de distração revela a saída que estava faltando.",
+  "Improved healing": "Um sinal no ferimento mostra ao personagem a intervenção exata capaz de estabilizar a situação.",
+  "Improved initiative": "O personagem reconhece o início da ameaça antes dos demais e age no primeiro instante possível.",
+  "Improved intimidation": "Uma demonstração precisa deixa claro que resistir terá consequências muito piores do que cooperar.",
+  "Improved jumping": "Distância e impulso se encaixam, revelando o ponto exato de onde saltar e onde aterrissar.",
+  "Improved lockpicking": "O mecanismo oferece uma resistência reveladora, como se mostrasse ao personagem onde deve ser manipulado.",
+  "Improved perception": "Um som deslocado, uma sombra ou uma ausência chama atenção e faz o detalhe escondido se destacar.",
+  "Improved pickpocketing": "A atenção do alvo se desvia no momento perfeito, deixando seus pertences desprotegidos.",
+  "Improved repairing": "O defeito revela sua lógica e uma solução improvisada parece capaz de manter tudo funcionando.",
+  "Improved sneaking": "Ruídos, sombras e movimentos ao redor criam uma passagem discreta que talvez não se repita.",
+  "Improved swimming": "A corrente deixa de ser obstáculo e passa a indicar como avançar com muito menos esforço.",
+  "Improvised range": "Altura, ricochete ou uma posição privilegiada coloca um alvo distante ao alcance do ataque.",
+  "Improvised shelter": "Destroços, vegetação ou estruturas próximas podem ser reunidos rapidamente em uma proteção segura.",
+  "Improvised shield": "Um objeto resistente entra na trajetória do perigo e pode servir de defesa por tempo suficiente.",
+  "Inhibit foe": "O personagem percebe o hábito que antecede as ações do inimigo e encontra uma maneira de quebrar seu ritmo.",
+  "Inspire aggression": "Uma provocação ou demonstração de coragem incendeia os ânimos e empurra alguém para o confronto.",
+  "Intellect replenisher": "Uma lembrança, descoberta ou breve pausa organiza os pensamentos e devolve clareza ao personagem.",
+  "Knockout": "O adversário fica exposto por um instante, oferecendo a chance de encerrar a luta com um único golpe preciso.",
+  "Lucid moment": "A confusão se desfaz subitamente e o personagem enxerga a situação com uma clareza quase impossível.",
+  "Maintain temperature": "O personagem encontra uma forma de conservar ou dissipar calor, mantendo o corpo e os recursos em equilíbrio.",
+  "Make passage": "Uma fraqueza na barreira revela onde abrir caminho sem precisar seguir a rota esperada.",
+  "Master password": "Padrões, pistas e hábitos do criador convergem para uma palavra ou código que parece inevitavelmente correto.",
+  "Mental concentration": "Mesmo cercado por distrações, o personagem encontra um ponto de foco e sustenta o pensamento necessário.",
+  "Might replenisher": "Adrenalina, descanso breve ou pura teimosia devolve força aos músculos cansados.",
+  "Motivated aid": "A ajuda chega com propósito renovado, e quem colabora percebe exatamente como fazer a diferença.",
+  "Near-death experience": "Ao chegar perto do fim, o personagem encontra um motivo urgente para continuar e se agarra a ele.",
+  "Noncombat enhancer": "Fora da luta, tempo, ferramentas e circunstâncias se alinham para favorecer uma tarefa importante.",
+  "Not me": "O perigo hesita, muda de direção ou encontra um alvo mais imediato, deixando o personagem fora de seu foco.",
+  "Offensive object break": "O personagem nota a peça, apoio ou cobertura cuja destruição prejudicará diretamente o adversário.",
+  "Pacify beast": "A criatura demonstra um medo ou necessidade que pode ser reconhecido e acalmado sem violência.",
+  "Perfect moment": "Todas as condições se alinham por um breve instante; esperar mais significaria perder a oportunidade.",
+  "Pidgin": "Gestos, palavras parecidas e contexto bastam para construir uma linguagem improvisada entre desconhecidos.",
+  "Poison recovery": "O corpo começa a expulsar a toxina, e uma intervenção simples acelera essa reação.",
+  "Press the advantage": "O inimigo ainda tenta se recompor do último revés, abrindo espaço para manter a pressão.",
+  "Push": "O equilíbrio do alvo falha perto de uma borda, obstáculo ou posição que o personagem pode explorar.",
+  "Quick disable": "O mecanismo tem um ponto vulnerável visível, permitindo neutralizá-lo antes que alguém reaja.",
+  "Quick feint": "Um movimento convincente atrai a defesa para o lado errado e cria uma abertura imediata.",
+  "Quick funds": "Uma dívida lembrada, objeto negociável ou pequena reserva esquecida fornece os recursos necessários.",
+  "Remembering": "Uma imagem, palavra ou sensação desperta a lembrança exata que parecia perdida.",
+  "Repel": "Força, posição e impulso se combinam para afastar a ameaça e recuperar espaço na cena.",
+  "Restrain": "Roupas, cabos, terreno ou a própria postura do alvo oferecem uma chance de prendê-lo no lugar.",
+  "Reveal unseen": "Poeira, reflexos, ruídos ou alterações no ambiente denunciam aquilo que não podia ser visto diretamente.",
+  "Sated": "Uma pequena quantidade de alimento, água ou energia satisfaz muito mais do que deveria naquele momento.",
+  "Secret": "Uma pausa, contradição ou detalhe fora do lugar revela que alguém está escondendo algo importante.",
+  "Silent message": "Olhares, sinais discretos ou uma coincidência sonora permitem transmitir uma ideia sem chamar atenção.",
+  "Slippery": "A contenção perde firmeza e o personagem encontra espaço para escapar antes que seja ajustada.",
+  "Snap alert": "Um pressentimento ou sinal quase imperceptível coloca o personagem em alerta no instante anterior ao perigo.",
+  "Speed replenisher": "O ritmo volta às pernas e aos reflexos, como se o cansaço tivesse sido deixado para trás.",
+  "Take one for the team": "O personagem percebe que pode entrar no caminho do perigo e impedir que ele alcance outra pessoa.",
+  "Teach trick": "Uma explicação rápida e um bom exemplo permitem que outra pessoa repita uma técnica inesperada.",
+  "Traumatic amnesia": "O choque do momento embaralha uma lembrança específica, tornando-a distante ou inacessível.",
+  "Wound recovery": "O ferimento responde melhor do que o esperado ao cuidado, ao repouso ou à determinação do personagem.",
+  "Wounded desperation": "A dor transforma hesitação em urgência e permite uma reação extrema quando recuar já não parece possível."
+}));
 let cypherSources = new Map();
 let hand = [];
 let panelOpen = false;
+let searchQuery = "";
+let selectedCypher = "";
 const overflowTimers = new Map();
 const openOverflowDialogs = new Set();
-let state = { contexts: ["dramatic"], saved: [], history: [], collapsed: false, left: null, top: 120 };
+let state = { contexts: ["dramatic"], saved: [], history: [], collapsed: false, view: "suggestions", left: null, top: 80 };
 
 const t = (key, data = {}) => game.i18n.format(`C2T.Opportunities.${key}`, data);
 const normalize = value => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -76,6 +166,7 @@ function loadState() {
       saved: Array.isArray(raw.saved) ? raw.saved.filter(name => catalogByName.has(normalize(name))).slice(0, 20) : [],
       history: Array.isArray(raw.history) ? raw.history.filter(name => catalogByName.has(normalize(name))).slice(-HISTORY_LIMIT) : [],
       collapsed: Boolean(raw.collapsed),
+      view: ["suggestions", "catalog", "saved"].includes(raw.view) ? raw.view : "suggestions",
       left: raw.left !== null && raw.left !== undefined && Number.isFinite(Number(raw.left)) ? Number(raw.left) : null,
       top: Number.isFinite(Number(raw.top)) ? Number(raw.top) : 120
     };
@@ -156,6 +247,9 @@ function addHistory(names) {
 function drawNewHand({ rememberCurrent = true } = {}) {
   if (rememberCurrent) addHistory(hand.map(entry => entry.name));
   hand = weightedSuggestions(HAND_SIZE);
+  state.view = "suggestions";
+  searchQuery = "";
+  selectedCypher = "";
   saveState();
   renderPanel();
 }
@@ -194,29 +288,80 @@ function effectSummary(description, maxLength = 190) {
   return escapeHtml(plain.length > maxLength ? `${plain.slice(0, maxLength - 1).trim()}…` : plain);
 }
 
-function cardHtml(entry) {
+function plainDescription(description) {
+  const container = document.createElement("div");
+  container.innerHTML = String(description ?? "");
+  return String(container.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
+function narrativeIdea(entry) {
+  return NARRATIVE_IDEAS.get(entry.name) ?? t("NarrativeFallback");
+}
+
+function searchableEntryText(entry) {
+  const source = cypherSources.get(normalize(entry.name));
+  return normalize([
+    entry.name,
+    entry.tags.map(contextLabel).join(" "),
+    narrativeIdea(entry),
+    plainDescription(source?.description)
+  ].join(" "));
+}
+
+function matchingCatalogEntries(query) {
+  const terms = normalize(query).split(" ").filter(Boolean);
+  if (!terms.length) return CATALOG;
+  return CATALOG.filter(entry => {
+    const text = searchableEntryText(entry);
+    return terms.every(term => text.includes(term));
+  });
+}
+
+function cardHtml(entry, {replaceable = false} = {}) {
   const source = cypherSources.get(normalize(entry.name));
   const saved = state.saved.some(name => normalize(name) === normalize(entry.name));
-  return `<article class="c2t-opportunity-card" data-cypher="${entry.name}">
+  const selected = normalize(selectedCypher) === normalize(entry.name);
+  return `<article class="c2t-opportunity-card ${selected ? "selected" : ""}" data-cypher="${entry.name}" tabindex="0">
     <header><img src="${source?.img || "icons/svg/mystery-man.svg"}" alt=""><div><strong>${entry.name}</strong><small>${t("Page", { page: entry.page })} · ${source ? t("Available") : t("ReferenceOnly")}</small></div></header>
     <div class="c2t-opportunity-tags">${entry.tags.map(tag => `<span>${contextLabel(tag)}</span>`).join("")}</div>
     <p class="c2t-opportunity-effect"><strong>${t("Effect")}:</strong> ${effectSummary(source?.description)}</p>
-    <footer>
+    <p class="c2t-opportunity-narrative-idea"><i class="fa-solid fa-lightbulb"></i><span><strong>${t("NarrativeIdea")}:</strong> ${escapeHtml(narrativeIdea(entry))}</span></p>
+    <footer class="${replaceable ? "has-replace" : ""}">
       <button type="button" data-opportunity-action="offer" title="${t("Offer")}" ${source ? "" : "disabled"}><i class="fa-solid fa-gift"></i> ${t("Offer")}</button>
       <button type="button" data-opportunity-action="save" title="${saved ? t("Unsave") : t("Save")}"><i class="${saved ? "fa-solid" : "fa-regular"} fa-star"></i></button>
-      <button type="button" data-opportunity-action="replace" title="${t("Replace")}"><i class="fa-solid fa-shuffle"></i></button>
+      ${replaceable ? `<button type="button" data-opportunity-action="replace" title="${t("Replace")}"><i class="fa-solid fa-shuffle"></i></button>` : ""}
       <button type="button" data-opportunity-action="open" title="${t("OpenItem")}" ${source ? "" : "disabled"}><i class="fa-solid fa-up-right-from-square"></i></button>
     </footer>
   </article>`;
 }
 
-function savedHtml() {
-  if (!state.saved.length) return `<p class="c2t-opportunity-empty">${t("NoSaved")}</p>`;
-  return state.saved.map(name => {
-    const entry = catalogByName.get(normalize(name));
-    const available = cypherSources.has(normalize(name));
-    return `<div class="c2t-opportunity-saved-item" data-cypher="${entry.name}"><span><i class="fa-solid fa-star"></i> ${entry.name}</span><div><button type="button" data-opportunity-action="offer" ${available ? "" : "disabled"}><i class="fa-solid fa-gift"></i></button><button type="button" data-opportunity-action="save"><i class="fa-solid fa-xmark"></i></button></div></div>`;
-  }).join("");
+function workspaceHtml() {
+  let entries;
+  let title;
+  let empty;
+  let replaceable = false;
+  if (searchQuery.trim()) {
+    entries = matchingCatalogEntries(searchQuery);
+    title = t("SearchResults", {count: entries.length});
+    empty = t("NoSearchResults");
+  } else if (state.view === "catalog") {
+    entries = CATALOG;
+    title = t("FullCatalog", {count: entries.length});
+    empty = t("NoSearchResults");
+  } else if (state.view === "saved") {
+    entries = state.saved.map(name => catalogByName.get(normalize(name))).filter(Boolean);
+    title = t("Saved", {count: entries.length});
+    empty = t("NoSaved");
+  } else {
+    entries = hand;
+    title = t("SceneSuggestions");
+    empty = t("NoSearchResults");
+    replaceable = true;
+  }
+  return `<section class="c2t-opportunity-workspace">
+    <header><h3>${escapeHtml(title)}</h3><span>${searchQuery.trim() ? escapeHtml(t("SearchingFor", {query: searchQuery.trim()})) : ""}</span></header>
+    ${entries.length ? `<div class="c2t-opportunity-hand">${entries.map(entry => cardHtml(entry, {replaceable})).join("")}</div>` : `<div class="c2t-opportunity-empty-state"><i class="fa-solid fa-magnifying-glass"></i><p>${escapeHtml(empty)}</p></div>`}
+  </section>`;
 }
 
 function panelHtml() {
@@ -227,11 +372,20 @@ function panelHtml() {
       <div class="c2t-opportunity-header-actions"><button type="button" data-panel-action="refresh" title="${t("RefreshCatalog")}"><i class="fa-solid fa-rotate"></i></button><button type="button" data-panel-action="collapse" title="${t("Collapse")}"><i class="fa-solid ${state.collapsed ? "fa-chevron-up" : "fa-chevron-down"}"></i></button><button type="button" data-panel-action="close" title="${t("Close")}"><i class="fa-solid fa-xmark"></i></button></div>
     </header>
     <div class="c2t-opportunity-body">
-      <p class="c2t-opportunity-intro">${t("Intro")}</p>
-      <div class="c2t-opportunity-contexts">${CONTEXTS.map(context => `<button type="button" data-context="${context}" class="${state.contexts.includes(context) ? "active" : ""}">${contextLabel(context)}</button>`).join("")}</div>
-      <div class="c2t-opportunity-toolbar"><button type="button" data-panel-action="draw"><i class="fa-solid fa-shuffle"></i> ${t("NewHand")}</button><button type="button" data-panel-action="dramatic"><i class="fa-solid fa-bolt"></i> ${t("DramaticMoment")}</button></div>
-      <div class="c2t-opportunity-hand">${hand.map(cardHtml).join("")}</div>
-      <details class="c2t-opportunity-saved"><summary>${t("Saved", { count: state.saved.length })}</summary>${savedHtml()}</details>
+      <div class="c2t-opportunity-navigation">
+        <div class="c2t-opportunity-search"><i class="fa-solid fa-magnifying-glass"></i><input type="search" data-opportunity-search value="${escapeHtml(searchQuery)}" placeholder="${t("SearchPlaceholder")}" autocomplete="off"><button type="button" data-panel-action="clear-search" title="${t("ClearSearch")}" ${searchQuery ? "" : "hidden"}><i class="fa-solid fa-xmark"></i></button></div>
+        <div class="c2t-opportunity-view-tabs">
+          <button type="button" data-view="suggestions" class="${!searchQuery && state.view === "suggestions" ? "active" : ""}"><i class="fa-solid fa-wand-sparkles"></i> ${t("SuggestionsTab")}</button>
+          <button type="button" data-view="catalog" class="${searchQuery || state.view === "catalog" ? "active" : ""}"><i class="fa-solid fa-table-cells-large"></i> ${t("CatalogTab")}</button>
+          <button type="button" data-view="saved" class="${!searchQuery && state.view === "saved" ? "active" : ""}"><i class="fa-solid fa-star"></i> ${t("SavedTab", {count: state.saved.length})}</button>
+        </div>
+      </div>
+      <div class="c2t-opportunity-scene-tools">
+        <div><strong>${t("SceneContext")}</strong><small>${t("ContextHint")}</small></div>
+        <div class="c2t-opportunity-contexts">${CONTEXTS.map(context => `<button type="button" data-context="${context}" class="${state.contexts.includes(context) ? "active" : ""}">${contextLabel(context)}</button>`).join("")}</div>
+        <div class="c2t-opportunity-toolbar"><button type="button" data-panel-action="draw"><i class="fa-solid fa-shuffle"></i> ${t("NewHand")}</button><button type="button" data-panel-action="dramatic"><i class="fa-solid fa-bolt"></i> ${t("DramaticMoment")}</button></div>
+      </div>
+      <div data-opportunity-workspace>${workspaceHtml()}</div>
       <footer class="c2t-opportunity-footer"><span>${t("History", { count: state.history.length })}</span><button type="button" data-panel-action="clear-history">${t("ClearHistory")}</button></footer>
     </div>
   </section>`;
@@ -791,7 +945,25 @@ async function openSourceItem(entry) {
 
 function bindPanel(panel) {
   bindDrag(panel);
+  const search = panel.querySelector("[data-opportunity-search]");
+  search?.addEventListener("input", event => {
+    searchQuery = event.currentTarget.value;
+    selectedCypher = "";
+    const workspace = panel.querySelector("[data-opportunity-workspace]");
+    if (workspace) workspace.innerHTML = workspaceHtml();
+    panel.querySelector("[data-panel-action='clear-search']")?.toggleAttribute("hidden", !searchQuery);
+    panel.querySelectorAll("[data-view]").forEach(button => button.classList.toggle("active", button.dataset.view === "catalog"));
+  });
   panel.addEventListener("click", async event => {
+    const viewButton = event.target.closest("[data-view]");
+    if (viewButton) {
+      state.view = viewButton.dataset.view;
+      searchQuery = "";
+      selectedCypher = "";
+      await saveState();
+      renderPanel();
+      return;
+    }
     const contextButton = event.target.closest("[data-context]");
     if (contextButton) {
       const context = contextButton.dataset.context;
@@ -804,12 +976,21 @@ function bindPanel(panel) {
     const panelAction = event.target.closest("[data-panel-action]")?.dataset.panelAction;
     if (panelAction === "collapse") { state.collapsed = !state.collapsed; await saveState(); renderPanel(); return; }
     if (panelAction === "close") { panelOpen = false; renderPanel(); return; }
+    if (panelAction === "clear-search") { searchQuery = ""; selectedCypher = ""; renderPanel(); return; }
     if (panelAction === "draw") { drawNewHand(); return; }
     if (panelAction === "dramatic") { state.contexts = ["dramatic"]; await saveState(); drawNewHand(); return; }
     if (panelAction === "clear-history") { state.history = []; await saveState(); drawNewHand({ rememberCurrent: false }); return; }
     if (panelAction === "refresh") { await buildSourceIndex(); renderPanel(); ui.notifications.info(t("CatalogRefreshed", { count: cypherSources.size })); return; }
     const actionElement = event.target.closest("[data-opportunity-action]");
-    if (!actionElement || actionElement.disabled) return;
+    if (!actionElement) {
+      const card = event.target.closest(".c2t-opportunity-card[data-cypher]");
+      if (!card) return;
+      selectedCypher = selectedCypher === card.dataset.cypher ? "" : card.dataset.cypher;
+      const workspace = panel.querySelector("[data-opportunity-workspace]");
+      if (workspace) workspace.innerHTML = workspaceHtml();
+      return;
+    }
+    if (actionElement.disabled) return;
     const container = actionElement.closest("[data-cypher]");
     const entry = catalogByName.get(normalize(container?.dataset.cypher));
     if (!entry) return;
