@@ -371,6 +371,13 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Substitui o cartão Fast/Normal/Last do chat por popups sincronizados para jogadores e Mestre.
 - Torna a integração do Carolingian resiliente à criação tardia, substituição e clonagem dos cartões do Combat Carousel.
 
+## v0.20.1
+
+- Substitui a declaração coletiva por uma pergunta individual e direta para cada personagem; clicar em Fast, Normal ou Last confirma imediatamente a escolha.
+- Mantém para o Mestre uma janela separada apenas para acompanhar as respostas e resolver as pendentes como Normal.
+- Corrige atualizações assíncronas concorrentes que podiam repetir personagens várias vezes no painel Wounds & Resources.
+- Remove integralmente a integração de wounds com o Combat Carousel do Carolingian UI, preservando o carousel original sem indicadores adicionais.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

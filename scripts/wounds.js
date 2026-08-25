@@ -7,6 +7,7 @@ const DEFAULTS = Object.freeze({ minor: 3, moderate: 3, major: 3 });
 const SEVERITIES = ["minor", "moderate", "major"];
 const PANEL_ACTOR_TYPES = new Set(["pc", "npc", "companion", "community", "vehicle"]);
 const APPLICATOR_SIZE_KEY = `${MODULE_ID}.applicatorSize.v3`;
+let applicatorRefreshRevision = 0;
 
 const i18n = (key, data = {}) => game.i18n.format(key, data);
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -940,6 +941,8 @@ function clearApplicatorSize() {
 async function refreshUniversalApplicator() {
   const panel = $("#c2t-universal-wound-applicator");
   if (!panel.length) return;
+  const revision = ++applicatorRefreshRevision;
+  const panelElement = panel[0];
 
   const targets = resolveApplicatorTargets();
   panel.removeClass("disabled").toggleClass("c2t-no-target", !targets.length);
@@ -955,6 +958,7 @@ async function refreshUniversalApplicator() {
   for (const actor of targets) {
     const usesWounds = actor.type === "pc";
     const data = usesWounds ? await getData(actor) : null;
+    if (revision !== applicatorRefreshRevision || !panelElement.isConnected) return;
     const resources = game.settings.get(MODULE_ID, "showResourcesInPanel")
       ? getActorResourceSnapshot(actor)
       : null;
@@ -1013,6 +1017,8 @@ async function refreshUniversalApplicator() {
 
     status.append(actorRow);
   }
+
+  if (revision !== applicatorRefreshRevision || !panelElement.isConnected) return;
 
   panel.find(".c2t-open-actor-control").off("click.c2tOpenActor").on("click.c2tOpenActor", event => {
     event.preventDefault();

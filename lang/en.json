@@ -310,13 +310,17 @@
   "C2T.Combat.Settings.Enabled.Name": "Enable Combat Assistant",
   "C2T.Combat.Settings.Enabled.Hint": "Enables round declarations, Fast/Normal/Last ordering, and turn reminders.",
   "C2T.Combat.Settings.Declarations.Name": "Ask about Fast Action and Last Action",
-  "C2T.Combat.Settings.Declarations.Hint": "Opens a declaration popup at the start of each round and orders turns without replacing rolled initiative.",
+  "C2T.Combat.Settings.Declarations.Hint": "Asks each player for their action in an individual popup at the start of the round and orders turns without replacing rolled initiative.",
   "C2T.Combat.Settings.Npcs.Name": "Include NPCs in declarations",
   "C2T.Combat.Settings.Npcs.Hint": "Lets the GM choose Fast, Normal, or Last for NPCs. Disabled by default to keep play moving.",
   "C2T.Combat.Settings.Reminders.Name": "Post start-of-turn reminder",
   "C2T.Combat.Settings.Reminders.Hint": "Shows the active character, action category, and a discreet wound summary in chat.",
   "C2T.Combat.RoundDeclaration": "Round {round} — action declaration",
-  "C2T.Combat.DeclarationIntro": "Choose when your character acts this round. Original initiative determines order within each group.",
+  "C2T.Combat.DeclarationIntro": "Monitor the declarations. Pending answers are treated as Normal when resolved.",
+  "C2T.Combat.CharacterDeclarationTitle": "{name} — round {round}",
+  "C2T.Combat.CharacterDeclarationIntro": "Choose when the character acts. The selected button immediately confirms the declaration.",
+  "C2T.Combat.ChoiceConfirmed": "{name}: {phase} action confirmed.",
+  "C2T.Combat.ChooseNpcPhase": "Choose {name}'s action",
   "C2T.Combat.Fast": "Fast",
   "C2T.Combat.Normal": "Normal",
   "C2T.Combat.Last": "Last",
@@ -331,15 +335,7 @@
   "C2T.Combat.TurnOf": "{name}'s turn",
   "C2T.Combat.RoundAndPhase": "Round {round} · {phase}",
   "C2T.Combat.NoWounds": "No wounds",
-  "C2T.Combat.Hindrance": "Hindrance {value}",
-  "C2T.Carolingian.Settings.Enabled.Name": "Show wounds in the Carolingian Combat Carousel",
-  "C2T.Carolingian.Settings.Enabled.Hint": "Adds compact Minor, Moderate, and Major Wound indicators to carousel cards while Carolingian UI is active.",
-  "C2T.Carolingian.Settings.Visibility.Name": "Carousel wound visibility",
-  "C2T.Carolingian.Settings.Visibility.Hint": "Controls who can see wound indicators added to Carolingian UI cards.",
-  "C2T.Carolingian.Settings.Visibility.All": "Everyone",
-  "C2T.Carolingian.Settings.Visibility.Owners": "GM and character owners",
-  "C2T.Carolingian.Settings.Visibility.GM": "GM only",
-  "C2T.Carolingian.HindranceTitle": "Wound hindrance: {value}"
+  "C2T.Combat.Hindrance": "Hindrance {value}"
 }
 
 

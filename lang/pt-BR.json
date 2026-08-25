@@ -310,13 +310,17 @@
   "C2T.Combat.Settings.Enabled.Name": "Ativar Assistente de Combate",
   "C2T.Combat.Settings.Enabled.Hint": "Ativa declarações de rodada, organização Fast/Normal/Last e lembretes de turno.",
   "C2T.Combat.Settings.Declarations.Name": "Perguntar Fast Action e Last Action",
-  "C2T.Combat.Settings.Declarations.Hint": "Abre uma janela de declaração no início de cada rodada e organiza a ordem sem substituir a iniciativa rolada.",
+  "C2T.Combat.Settings.Declarations.Hint": "Pede a cada jogador sua ação em uma janela individual no início da rodada e organiza a ordem sem substituir a iniciativa rolada.",
   "C2T.Combat.Settings.Npcs.Name": "Incluir NPCs nas declarações",
   "C2T.Combat.Settings.Npcs.Hint": "Permite que o Mestre escolha Fast, Normal ou Last para NPCs. Desativado por padrão para manter o fluxo rápido.",
   "C2T.Combat.Settings.Reminders.Name": "Publicar lembrete de início de turno",
   "C2T.Combat.Settings.Reminders.Hint": "Mostra no chat o personagem ativo, sua categoria de ação e um resumo discreto dos wounds.",
   "C2T.Combat.RoundDeclaration": "Rodada {round} — declaração de ações",
-  "C2T.Combat.DeclarationIntro": "Escolha quando seu personagem agirá nesta rodada. A iniciativa original decide a ordem dentro de cada grupo.",
+  "C2T.Combat.DeclarationIntro": "Acompanhe as declarações. Ao resolver, respostas pendentes serão consideradas Normal.",
+  "C2T.Combat.CharacterDeclarationTitle": "{name} — rodada {round}",
+  "C2T.Combat.CharacterDeclarationIntro": "Escolha quando o personagem agirá. O botão selecionado confirma imediatamente a declaração.",
+  "C2T.Combat.ChoiceConfirmed": "{name}: ação {phase} confirmada.",
+  "C2T.Combat.ChooseNpcPhase": "Escolher ação de {name}",
   "C2T.Combat.Fast": "Fast",
   "C2T.Combat.Normal": "Normal",
   "C2T.Combat.Last": "Last",
@@ -331,15 +335,7 @@
   "C2T.Combat.TurnOf": "Turno de {name}",
   "C2T.Combat.RoundAndPhase": "Rodada {round} · {phase}",
   "C2T.Combat.NoWounds": "Sem wounds",
-  "C2T.Combat.Hindrance": "Hindrance {value}",
-  "C2T.Carolingian.Settings.Enabled.Name": "Mostrar wounds no Carolingian Combat Carousel",
-  "C2T.Carolingian.Settings.Enabled.Hint": "Adiciona indicadores compactos de Minor, Moderate e Major Wounds aos cartões do carousel quando o Carolingian UI está ativo.",
-  "C2T.Carolingian.Settings.Visibility.Name": "Visibilidade dos wounds no carousel",
-  "C2T.Carolingian.Settings.Visibility.Hint": "Define quem pode ver os indicadores de wounds adicionados aos cartões do Carolingian UI.",
-  "C2T.Carolingian.Settings.Visibility.All": "Todos",
-  "C2T.Carolingian.Settings.Visibility.Owners": "Mestre e donos do personagem",
-  "C2T.Carolingian.Settings.Visibility.GM": "Somente o Mestre",
-  "C2T.Carolingian.HindranceTitle": "Hindrance causada por wounds: {value}"
+  "C2T.Combat.Hindrance": "Hindrance {value}"
 }
 
 

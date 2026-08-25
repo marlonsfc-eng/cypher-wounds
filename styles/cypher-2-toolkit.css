@@ -1296,86 +1296,6 @@
   }
 }
 
-/* v0.19.0 - Carolingian UI Combat Carousel wound indicators */
-#combat-popout .combat-tracker li.combatant > .c2t-carousel-wounds,
-#combat-popout [data-combatant-id].combatant > .c2t-carousel-wounds {
-  position: absolute;
-  z-index: 12;
-  left: 3px;
-  right: 3px;
-  bottom: 15px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-width: 0;
-  pointer-events: none;
-  font-family: var(--font-primary, sans-serif);
-  line-height: 1;
-}
-
-#combat-popout .combat-tracker li.combatant > .c2t-carousel-wounds::before,
-#combat-popout [data-combatant-id].combatant > .c2t-carousel-wounds::before {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: -2px;
-  border-radius: 5px;
-  background: rgba(10, 10, 13, .74);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
-  backdrop-filter: blur(2px);
-}
-
-.c2t-carousel-wound-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  min-width: 0;
-  padding: 2px 3px;
-  border: 1px solid currentColor;
-  border-radius: 4px;
-  color: #ddd;
-  background: rgba(0, 0, 0, .28);
-  font-size: 7px;
-  white-space: nowrap;
-}
-
-.c2t-carousel-wound-chip b {
-  font-size: 7px;
-  font-weight: 900;
-}
-
-.c2t-carousel-wound-chip span {
-  font-size: 7px;
-  font-weight: 700;
-}
-
-.c2t-carousel-wound-chip.minor { color: #59d9e8; }
-.c2t-carousel-wound-chip.moderate { color: #ffb13b; }
-.c2t-carousel-wound-chip.major { color: #ff537d; }
-.c2t-carousel-wound-chip.empty { opacity: .5; }
-.c2t-carousel-wound-chip.marked { box-shadow: 0 0 4px color-mix(in srgb, currentColor 55%, transparent); }
-
-.c2t-carousel-hindrance {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 17px;
-  min-height: 13px;
-  padding: 1px 3px;
-  color: #fff;
-  border: 1px solid #d5d5d5;
-  border-radius: 4px;
-  background: #7c2937;
-  box-shadow: 0 0 4px rgba(255, 83, 125, .55);
-  font-size: 7px;
-  font-weight: 900;
-}
-
-#combat-popout .combat-tracker li.combatant.crlngn-clone > .c2t-carousel-wounds {
-  pointer-events: none;
-}
-
 .c2t-hidden-cypher-type,
 .c2t-hidden-opportunity-roll {
   display: none !important;
@@ -1676,7 +1596,7 @@
 
 .c2t-combat-participant {
   display: grid;
-  grid-template-columns: 34px minmax(75px, 1fr) minmax(160px, 1.65fr);
+  grid-template-columns: 34px minmax(100px, 1fr) auto;
   align-items: center;
   gap: 6px;
   min-height: 40px;
@@ -1705,29 +1625,57 @@
   opacity: .66;
 }
 
-.c2t-combat-phase-buttons {
+.c2t-combat-monitor-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid currentColor;
+  border-radius: 9px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.c2t-combat-monitor-status.pending { opacity: .6; }
+.c2t-combat-monitor-status.fast { color: #986614; }
+.c2t-combat-monitor-status.normal { color: #437052; }
+.c2t-combat-monitor-status.last { color: #6266a2; }
+
+.c2t-combat-npc-phase {
+  width: auto;
+  min-width: 82px;
+  height: 25px;
+  font-size: 10px;
+}
+
+.c2t-combat-choice {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+}
+
+.c2t-combat-choice > img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 5px;
+}
+
+.c2t-combat-choice strong {
+  font-size: 14px;
+}
+
+.c2t-combat-choice p {
+  margin: 5px 0 0;
+  line-height: 1.35;
+}
+
+.window-app.dialog:has(.c2t-combat-choice) .dialog-buttons {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 3px;
-}
-
-.c2t-combat-phase-buttons button {
-  min-width: 0;
-  min-height: 26px;
-  margin: 0;
-  padding: 2px 4px;
-  font-size: 9px;
-}
-
-.c2t-combat-phase-buttons button i {
-  margin-right: 3px;
-}
-
-.c2t-combat-phase-buttons button.active {
-  color: #fff;
-  border-color: #8b672c;
-  background: rgba(139, 103, 44, .45);
-  box-shadow: 0 0 4px rgba(139, 103, 44, .45);
+  gap: 5px;
 }
 
 .c2t-combat-declaration > footer {
@@ -1743,10 +1691,6 @@
   margin: 0;
   padding: 2px 9px;
   font-size: 10px;
-}
-
-.c2t-combat-declaration.resolved .c2t-combat-phase-buttons {
-  opacity: .65;
 }
 
 .c2t-combat-turn-card {
@@ -1812,8 +1756,14 @@
     grid-template-columns: 32px 1fr;
   }
 
-  .c2t-combat-phase-buttons {
-    grid-column: 1 / -1;
+  .c2t-combat-monitor-status {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .c2t-combat-npc-phase {
+    grid-column: 2;
+    justify-self: start;
   }
 }
 

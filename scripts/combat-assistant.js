@@ -58,15 +58,16 @@ function phaseIcon(phase) {
 function declarationContent(combat, state, participants) {
   const rows = participants.map(combatant => {
     const selected = state.declarations?.[combatant.id] ?? "";
-    const buttons = Object.keys(PHASES).map(phase => `
-      <button type="button" data-c2t-combat-action="declare" data-combatant-id="${combatant.id}" data-phase="${phase}"
-        class="${selected === phase ? "active" : ""}" title="${escapeHtml(phaseLabel(phase))}">
-        <i class="fa-solid ${phaseIcon(phase)}"></i><span>${escapeHtml(phaseLabel(phase))}</span>
-      </button>`).join("");
+    const statusControl = game.user.isGM && combatant.actor.type !== "pc"
+      ? `<select class="c2t-combat-npc-phase" data-c2t-npc-phase="${combatant.id}" aria-label="${escapeHtml(t("ChooseNpcPhase", {name: combatant.name}))}">
+          <option value="" ${selected ? "" : "selected"} disabled>${escapeHtml(t("Awaiting"))}</option>
+          ${Object.keys(PHASES).map(phase => `<option value="${phase}" ${selected === phase ? "selected" : ""}>${escapeHtml(phaseLabel(phase))}</option>`).join("")}
+        </select>`
+      : `<span class="c2t-combat-monitor-status ${selected || "pending"}"><i class="fa-solid ${selected ? phaseIcon(selected) : "fa-clock"}"></i> ${escapeHtml(selected ? phaseLabel(selected) : t("Awaiting"))}</span>`;
     return `<div class="c2t-combat-participant" data-combatant-row="${combatant.id}">
       <img src="${escapeHtml(combatant.img || combatant.actor.img)}" alt="">
       <div class="c2t-combat-participant-name"><strong>${escapeHtml(combatant.name)}</strong><small>${selected ? escapeHtml(phaseLabel(selected)) : escapeHtml(t("Awaiting"))}</small></div>
-      <div class="c2t-combat-phase-buttons">${buttons}</div>
+      ${statusControl}
     </div>`;
   }).join("");
   const chosen = participants.filter(combatant => state.declarations?.[combatant.id]).length;
@@ -83,54 +84,95 @@ function localParticipants(combat) {
   return game.user.isGM ? participants : participants.filter(combatant => canChoose(combatant, game.user));
 }
 
-function closeDeclarationDialog(combatId) {
-  const dialog = declarationDialogs.get(combatId);
+function closeDeclarationDialogs(combatId) {
+  for (const [key, dialog] of declarationDialogs) {
+    if (!key.startsWith(`${combatId}:`)) continue;
+    declarationDialogs.delete(key);
+    dialog.close();
+  }
+}
+
+function closeCombatantPrompt(combatId, combatantId) {
+  const key = `${combatId}:${combatantId}`;
+  const dialog = declarationDialogs.get(key);
   if (!dialog) return;
-  declarationDialogs.delete(combatId);
+  declarationDialogs.delete(key);
   dialog.close();
 }
 
-function bindDeclarationDialog(dialog, combat) {
-  const root = dialog.element?.[0] ?? dialog.element;
-  if (!(root instanceof HTMLElement)) return;
-  for (const button of root.querySelectorAll("[data-c2t-combat-action='declare']")) {
-    const combatant = combat.combatants.get(button.dataset.combatantId);
-    button.disabled = !canChoose(combatant, game.user);
-    button.addEventListener("click", event => {
-      event.preventDefault();
-      dispatchCombatAction({action: "combatDeclare", combatId: combat.id, combatantId: button.dataset.combatantId, phase: button.dataset.phase});
+function showCombatantPrompt(combat, combatant) {
+  const key = `${combat.id}:${combatant.id}`;
+  if (declarationDialogs.has(key)) return;
+  const choose = phase => {
+    declarationDialogs.delete(key);
+    dispatchCombatAction({action: "combatDeclare", combatId: combat.id, combatantId: combatant.id, phase});
+    ui.notifications.info(t("ChoiceConfirmed", {name: combatant.name, phase: phaseLabel(phase)}));
+  };
+  const dialog = new Dialog({
+    title: t("CharacterDeclarationTitle", {name: combatant.name, round: combat.round}),
+    content: `<section class="c2t-combat-choice"><img src="${escapeHtml(combatant.img || combatant.actor.img)}" alt=""><div><strong>${escapeHtml(combatant.name)}</strong><p>${escapeHtml(t("CharacterDeclarationIntro"))}</p></div></section>`,
+    buttons: {
+      fast: {icon: `<i class="fa-solid ${phaseIcon("fast")}"></i>`, label: phaseLabel("fast"), callback: () => choose("fast")},
+      normal: {icon: `<i class="fa-solid ${phaseIcon("normal")}"></i>`, label: phaseLabel("normal"), callback: () => choose("normal")},
+      last: {icon: `<i class="fa-solid ${phaseIcon("last")}"></i>`, label: phaseLabel("last"), callback: () => choose("last")}
+    },
+    default: "normal",
+    close: () => { if (declarationDialogs.get(key) === dialog) declarationDialogs.delete(key); }
+  }, {width: 470});
+  declarationDialogs.set(key, dialog);
+  dialog.render(true);
+}
+
+function bindGmMonitor(dialog, combat) {
+  dialog.element?.find?.("[data-c2t-npc-phase]")
+    .off("change.c2tCombatNpc")
+    .on("change.c2tCombatNpc", event => {
+      const select = event.currentTarget;
+      if (!(select.value in PHASES)) return;
+      select.disabled = true;
+      dispatchCombatAction({action: "combatDeclare", combatId: combat.id, combatantId: select.dataset.c2tNpcPhase, phase: select.value});
     });
+}
+
+function showGmMonitor(combat, state) {
+  const participants = participantCombatants(combat);
+  if (!participants.length) return;
+  const key = `${combat.id}:gm`;
+  const content = declarationContent(combat, state, participants);
+  const existing = declarationDialogs.get(key);
+  if (existing) {
+    existing.data.content = content;
+    const body = existing.element?.find?.(".dialog-content");
+    if (body?.length) body.html(content);
+    bindGmMonitor(existing, combat);
+    return;
   }
+  const dialog = new Dialog({
+    title: t("RoundDeclaration", {round: state.round}),
+    content,
+    buttons: {
+      resolve: {icon: '<i class="fa-solid fa-check"></i>', label: t("ResolveNow"), callback: () => dispatchCombatAction({action: "combatResolve", combatId: combat.id})},
+      close: {label: t("ClosePopup")}
+    },
+    default: "resolve",
+    render: app => bindGmMonitor(app, combat),
+    close: () => { if (declarationDialogs.get(key) === dialog) declarationDialogs.delete(key); }
+  }, {width: 520, resizable: true});
+  declarationDialogs.set(key, dialog);
+  dialog.render(true);
 }
 
 function showDeclarationDialog(combat) {
   const state = stateFor(combat);
   if (!combat?.started || !state || state.round !== combat.round || state.resolved) {
-    if (combat?.id) closeDeclarationDialog(combat.id);
+    if (combat?.id) closeDeclarationDialogs(combat.id);
     return;
   }
-  const participants = localParticipants(combat);
-  if (!participants.length) return;
-  const existing = declarationDialogs.get(combat.id);
-  if (existing) {
-    existing.data.content = declarationContent(combat, state, participants);
-    existing.render(true);
-    return;
+  if (game.user.isGM) return showGmMonitor(combat, state);
+  for (const combatant of localParticipants(combat)) {
+    if (state.declarations?.[combatant.id]) closeCombatantPrompt(combat.id, combatant.id);
+    else showCombatantPrompt(combat, combatant);
   }
-  const buttons = game.user.isGM ? {
-    resolve: {icon: '<i class="fa-solid fa-check"></i>', label: t("ResolveNow"), callback: () => dispatchCombatAction({action: "combatResolve", combatId: combat.id})},
-    close: {label: t("ClosePopup")}
-  } : {close: {label: t("ClosePopup")}};
-  const dialog = new Dialog({
-    title: t("RoundDeclaration", {round: state.round}),
-    content: declarationContent(combat, state, participants),
-    buttons,
-    default: game.user.isGM ? "resolve" : "close",
-    render: app => bindDeclarationDialog(app, combat),
-    close: () => { if (declarationDialogs.get(combat.id) === dialog) declarationDialogs.delete(combat.id); }
-  }, {width: game.user.isGM ? 650 : 560, resizable: true});
-  declarationDialogs.set(combat.id, dialog);
-  dialog.render(true);
 }
 
 function broadcastDeclaration(combat) {
@@ -173,7 +215,7 @@ async function resolveDeclarations(combat) {
   await combat.setFlag(MODULE_ID, STATE_FLAG, state);
   combat.setupTurns();
   await combat.update({turn: 0}, {c2tCombatAssistant: true});
-  closeDeclarationDialog(combat.id);
+  closeDeclarationDialogs(combat.id);
   game.socket.emit(SOCKET_CHANNEL, {action: "combatCloseDeclaration", combatId: combat.id});
   ui.combat?.render({force: true});
   window.setTimeout(() => announceCurrentTurn(combat), 250);
@@ -184,6 +226,7 @@ async function reopenDeclarations(combat) {
   const state = foundry.utils.deepClone(stateFor(combat));
   if (!state || state.round !== combat.round) return;
   state.resolved = false;
+  state.declarations = {};
   delete state.resolvedAt;
   await combat.setFlag(MODULE_ID, STATE_FLAG, state);
   combat.setupTurns();
@@ -195,7 +238,7 @@ async function reopenDeclarations(combat) {
 async function handleCombatAction(payload) {
   const combat = game.combats.get(payload.combatId);
   if (payload.action === "combatShowDeclaration") return showDeclarationDialog(combat);
-  if (payload.action === "combatCloseDeclaration") return combat && closeDeclarationDialog(combat.id);
+  if (payload.action === "combatCloseDeclaration") return combat && closeDeclarationDialogs(combat.id);
   if (!isCoordinator()) return;
   const user = game.users.get(payload.userId);
   const state = foundry.utils.deepClone(stateFor(combat));
