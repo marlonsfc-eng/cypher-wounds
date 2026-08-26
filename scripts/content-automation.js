@@ -1,4 +1,5 @@
 const ID = "cypher-2-toolkit";
+const PLAYER_INTRUSION_CATEGORY = "Player Intrusion";
 const fget = (document, key) => document?.getFlag?.(ID, key);
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[character]);
 
@@ -173,6 +174,12 @@ function nativeRollDefaults(item) {
 async function normalizeImportedAbility(item) {
   if (!item || item.type !== "ability" || fget(item, "category") !== "abilities") return;
   const desired = nativeRollDefaults(item);
+  if (isPlayerIntrusion(item)) {
+    desired["system.basic.cost"] = "1";
+    desired["system.basic.pool"] = "XP";
+    desired["system.settings.general.sorting"] = PLAYER_INTRUSION_CATEGORY;
+    desired["system.settings.rollButton.pool"] = "XP";
+  }
   const update = {};
   for (const [path, value] of Object.entries(desired)) {
     const current = foundry.utils.getProperty(item, path);
@@ -253,8 +260,17 @@ async function usePlayerIntrusion(actor, item) {
 
 async function migrateImportedAbilities() {
   if (!game.user.isGM) return;
+  for (const item of game.items ?? []) await normalizeImportedAbility(item);
   for (const actor of game.actors ?? []) {
     for (const item of actor.items ?? []) await normalizeImportedAbility(item);
+  }
+  for (const pack of game.packs ?? []) {
+    if (pack.documentName !== "Item" || !pack.collection.startsWith("world.")) continue;
+    try {
+      for (const item of await pack.getDocuments()) await normalizeImportedAbility(item);
+    } catch (error) {
+      console.warn(`${ID} | Could not normalize imported Abilities in ${pack.collection}`, error);
+    }
   }
 }
 

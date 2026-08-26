@@ -1,5 +1,11 @@
 # Cypher 2 Toolkit
 
+## v0.23.1
+
+- Corrige a categoria das intrusões para o nome exato `Player Intrusion` usado na ficha.
+- Migra automaticamente Items já importados no compêndio, no mundo e nas fichas.
+- Torna o distribuidor permanentemente acessível nas configurações do módulo e dentro do importador.
+
 ## v0.23.0
 
 - Adiciona suporte a Player Intrusions importadas como Abilities, com confirmação, gasto automático de 1 XP e publicação no chat.
