@@ -1,5 +1,13 @@
 # Cypher 2 Toolkit
 
+## v0.23.0
+
+- Adiciona suporte a Player Intrusions importadas como Abilities, com confirmação, gasto automático de 1 XP e publicação no chat.
+- O importador passa a aceitar Journals e a resolver links de Abilities para regras importadas.
+- Inclui um distribuidor pós-importação para adicionar as três intrusões corretas a cada ficha sem duplicações.
+- Reconhece coleções de Player Intrusions para Glaive, Nano, Wright e Delve; Tinkering Vision pode ser substituída por Ingenious Repurposing.
+- Weapon Break usa uma conversão direta para Cypher 2 e aponta para o Journal de Damage to Objects da página 300.
+
 ## v0.22.0
 
 - Adiciona um Plano da Cena ao painel de Oportunidades de Cypher, salvo diretamente na Scene ativa.

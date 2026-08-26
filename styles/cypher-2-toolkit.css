@@ -1533,12 +1533,14 @@
 }
 
 .c2t-hidden-cypher-type,
-.c2t-hidden-opportunity-roll {
+.c2t-hidden-opportunity-roll,
+.c2t-hidden-player-intrusion-roll {
   display: none !important;
 }
 
 .c2t-opportunity-use,
-.c2t-cypher-chat-link {
+.c2t-cypher-chat-link,
+.c2t-player-intrusion-use {
   display: inline-flex !important;
   align-items: center;
   gap: 3px;
@@ -1549,6 +1551,29 @@
   font-size: 9px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.c2t-player-intrusion-use {
+  color: #b07a16;
+}
+
+.c2t-player-intrusion-use span {
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.c2t-player-intrusion-chat > h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+
+.c2t-player-intrusion-chat > div {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(0, 0, 0, .18);
 }
 
 .c2t-item-chat > h3 {

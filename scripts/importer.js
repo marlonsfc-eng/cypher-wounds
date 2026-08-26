@@ -7,9 +7,17 @@ function slugify(value) {
 }
 function cleanObject(value) { return foundry.utils.deepClone(value ?? {}); }
 function getSourceId(entry, category) { return String(entry.id ?? entry.sourceId ?? `${category}.${slugify(entry.name)}`); }
-function htmlFromEntry(entry) {
-  if (entry.html) return String(entry.html);
-  if (entry.description) return `<div class="c2t-imported-description">${String(entry.description)}</div>`;
+function resolveContentLinks(content, context) {
+  return String(content ?? "").replace(/\{\{journal:([^|}]+)(?:\|([^}]+))?\}\}/g, (_match, sourceId, label) => {
+    const linked = context?.journalLinks?.get(String(sourceId).trim());
+    if (!linked) return String(label ?? sourceId).trim();
+    return `@UUID[${linked.uuid}]{${String(label ?? linked.name).trim()}}`;
+  });
+}
+function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[character]); }
+function htmlFromEntry(entry, context=null) {
+  if (entry.html) return resolveContentLinks(entry.html, context);
+  if (entry.description) return `<div class="c2t-imported-description">${resolveContentLinks(entry.description, context)}</div>`;
   return "<p></p>";
 }
 
@@ -28,7 +36,7 @@ function buildImportContext(payload) {
     foci.set(slugify(entry.name), entry);
     foci.set(id.replace(/^focus\./, ""), entry);
   }
-  return {payload, types, foci};
+  return {payload, types, foci, journalLinks: new Map()};
 }
 
 function resolveOrigin(entry, category, context) {
@@ -67,7 +75,7 @@ function itemData(entry, category="abilities", context=null) {
   const isCypher = category === "cyphers";
   const systemDefaults = isCypher ? {
     version: 2,
-    description: htmlFromEntry(entry),
+    description: htmlFromEntry(entry, context),
     archived: false,
     favorite: false,
     price: { value: 0, currency: "", priceTag: "", category: "none" },
@@ -75,7 +83,7 @@ function itemData(entry, category="abilities", context=null) {
     settings: { general: { nameUnidentified: "" } }
   } : isSkill ? {
     version: 2,
-    description: htmlFromEntry(entry),
+    description: htmlFromEntry(entry, context),
     archived: false,
     favorite: false,
     basic: { rating: String(entry.rating ?? "Trained") },
@@ -105,7 +113,7 @@ function itemData(entry, category="abilities", context=null) {
       }
     }
   } : {
-    version: 2, description: htmlFromEntry(entry), archived: false, favorite: false,
+    version: 2, description: htmlFromEntry(entry, context), archived: false, favorite: false,
     basic: { cost: String(entry.cost ?? "0"), pool: String(entry.pool ?? "Pool") },
     settings: {
       general: { sorting: String(entry.sorting ?? (category === "types" ? "Type" : category === "foci" ? "Focus" : category === "descriptors" ? "Descriptor" : "Ability")), spellTier: String(entry.spellTier ?? "low"), unmaskedForm: "Mask" },
@@ -131,7 +139,8 @@ function itemData(entry, category="abilities", context=null) {
       apply: entry.apply ?? null, origin, page: entry.page ?? entry.source?.page ?? null,
       tags: Array.isArray(entry.tags) ? entry.tags : [], effect: entry.effect ?? null,
       explanation: entry.explanation ?? null, explanationPtBr: entry.explanationPtBr ?? null,
-      randomCypher: Boolean(entry.randomCypher ?? false)
+      randomCypher: Boolean(entry.randomCypher ?? false),
+      playerIntrusion: Boolean(entry.playerIntrusion ?? false), intrusionType: entry.intrusionType ?? null
     }}
   }, base, {inplace:false, overwrite:true});
 }
@@ -233,9 +242,54 @@ async function upsertDocuments(pack, entries, category, context, mode="update") 
   return {created,updated,deleted};
 }
 
+function journalData(entry) {
+  const sourceId = getSourceId(entry, "journals");
+  const content = String(entry.html ?? entry.description ?? "<p></p>");
+  return {
+    name: String(entry.name),
+    img: String(entry.img ?? "icons/svg/book.svg"),
+    ownership: {default: CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER},
+    flags: {[C2T_ID]: {sourceId, category: "journals", source: entry.source ?? null, page: entry.page ?? entry.source?.page ?? null}},
+    pages: [{name: String(entry.pageName ?? entry.name), type: "text", text: {content, format: 1}}]
+  };
+}
+
+async function upsertJournals(pack, entries, context, mode="update") {
+  const existing = await pack.getDocuments();
+  const bySource = new Map(existing.map(document => [document.getFlag(C2T_ID, "sourceId"), document]));
+  let created = 0, updated = 0, deleted = 0;
+  if (mode === "replace") {
+    const owned = existing.filter(document => document.getFlag(C2T_ID, "sourceId"));
+    if (owned.length) {
+      await pack.documentClass.deleteDocuments(owned.map(document => document.id), {pack: pack.collection});
+      deleted = owned.length;
+      bySource.clear();
+    }
+  }
+  for (const entry of entries) {
+    const data = journalData(entry);
+    const sourceId = foundry.utils.getProperty(data, `flags.${C2T_ID}.sourceId`);
+    const match = bySource.get(sourceId);
+    let journal;
+    if (match && mode === "update") {
+      await match.update({name: data.name, img: data.img, flags: data.flags, ownership: data.ownership});
+      if (match.pages.size) await match.deleteEmbeddedDocuments("JournalEntryPage", match.pages.map(page => page.id));
+      await match.createEmbeddedDocuments("JournalEntryPage", data.pages);
+      journal = match;
+      updated += 1;
+    } else {
+      [journal] = await pack.documentClass.createDocuments([data], {pack: pack.collection});
+      created += 1;
+    }
+    const page = journal?.pages?.contents?.[0] ?? journal?.pages?.first?.() ?? null;
+    context.journalLinks.set(sourceId, {uuid: page?.uuid ?? journal.uuid, name: page?.name ?? journal.name});
+  }
+  return {created, updated, deleted};
+}
+
 function validatePayload(payload){
   if(!payload||typeof payload!=="object"||Array.isArray(payload)) throw new Error(c2tLocalize("C2T.Importer.InvalidRoot"));
-  const supported=["types","foci","descriptors","skills","abilities","cyphers"];
+  const supported=["types","foci","descriptors","skills","abilities","cyphers","journals"];
   if(!supported.some(key=>Array.isArray(payload[key]))) throw new Error(c2tLocalize("C2T.Importer.NoCollections"));
   for(const key of supported){if(payload[key]!==undefined&&!Array.isArray(payload[key])) throw new Error(`${key}: ${c2tLocalize("C2T.Importer.MustBeArray")}`);for(const entry of payload[key]??[]){if(!entry||typeof entry!=="object"||!entry.name) throw new Error(`${key}: ${c2tLocalize("C2T.Importer.MissingName")}`);}}
 }
@@ -244,6 +298,10 @@ export async function importCypherContent(payload,options={}){
   if(!game.user.isGM) throw new Error(c2tLocalize("C2T.GMOnly")); validatePayload(payload);
   const mode=options.mode==="replace"?"replace":"update"; const prefix=slugify(options.prefix??payload.meta?.packPrefix??"cypher-2");
   const labels=payload.meta?.labels??{}; const summary={}; const context=buildImportContext(payload);
+  if(Array.isArray(payload.journals)){
+    const pack=await ensureWorldPack({name:`${prefix}-journals`,label:labels.journals??"Cypher 2 — Rules",type:"JournalEntry"});
+    summary.journals=await upsertJournals(pack,payload.journals,context,mode);
+  }
   for(const category of ["abilities","types","foci","descriptors","skills","cyphers"]){
     if(!Array.isArray(payload[category])) continue;
     const defaultLabel=category==="abilities"?"Cypher 2 — Abilities":category==="types"?"Cypher 2 — Types":category==="foci"?"Cypher 2 — Foci":category==="descriptors"?"Cypher 2 — Descriptors":category==="cyphers"?"Cypher 2 — Random Cyphers":"Cypher 2 — Skills";
@@ -253,9 +311,52 @@ export async function importCypherContent(payload,options={}){
   await game.settings.set(C2T_ID,"lastImport",JSON.stringify({date:new Date().toISOString(),meta:payload.meta??{},summary})); return summary;
 }
 
+async function distributePlayerIntrusions(payload, prefix) {
+  const actors = Array.from(game.actors ?? []).filter(actor => actor.type === "pc").sort((a, b) => a.name.localeCompare(b.name));
+  const types = [...new Set((payload.abilities ?? []).filter(entry => entry.playerIntrusion && entry.intrusionType).map(entry => String(entry.intrusionType)))].sort();
+  if (!actors.length || !types.length) return ui.notifications.warn(c2tLocalize("C2T.PlayerIntrusions.NoDistributionOptions"));
+  const content = `<form class="c2t-intrusion-distributor"><p>${c2tLocalize("C2T.PlayerIntrusions.DistributionHint")}</p><div class="form-group"><label>${c2tLocalize("C2T.PlayerIntrusions.Character")}</label><select name="actor">${actors.map(actor => `<option value="${escapeHtml(actor.id)}">${escapeHtml(actor.name)}</option>`).join("")}</select></div><div class="form-group"><label>${c2tLocalize("C2T.PlayerIntrusions.Type")}</label><select name="intrusionType">${types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("")}</select></div></form>`;
+  new Dialog({title: c2tLocalize("C2T.PlayerIntrusions.DistributeTitle"), content, buttons: {
+    add: {icon: '<i class="fa-solid fa-user-plus"></i>', label: c2tLocalize("C2T.PlayerIntrusions.AddToSheet"), callback: async html => {
+      const actor = game.actors.get(String(html.find("[name=actor]").val()));
+      const intrusionType = String(html.find("[name=intrusionType]").val());
+      const sourceIds = new Set((payload.abilities ?? []).filter(entry => entry.playerIntrusion && entry.intrusionType === intrusionType).map(entry => getSourceId(entry, "abilities")));
+      const pack = game.packs.get(`world.${slugify(prefix)}-abilities`);
+      if (!actor || !pack) return ui.notifications.warn(c2tLocalize("C2T.PlayerIntrusions.SourcePackMissing"));
+      const existing = new Set(Array.from(actor.items ?? []).map(item => item.getFlag(C2T_ID, "sourceId")).filter(Boolean));
+      const sources = (await pack.getDocuments()).filter(item => sourceIds.has(item.getFlag(C2T_ID, "sourceId")) && !existing.has(item.getFlag(C2T_ID, "sourceId")));
+      const data = sources.map(item => {
+        const clone = item.toObject();
+        delete clone._id; delete clone.folder; delete clone.sort; delete clone.ownership; delete clone._stats;
+        return clone;
+      });
+      if (data.length) await actor.createEmbeddedDocuments("Item", data);
+      ui.notifications.info(game.i18n.format("C2T.PlayerIntrusions.Distributed", {count: data.length, type: intrusionType, actor: actor.name}));
+      window.setTimeout(() => distributePlayerIntrusions(payload, prefix), 100);
+    }},
+    close: {label: c2tLocalize("C2T.PlayerIntrusions.Finish")}
+  }}, {width: 430}).render(true);
+}
+
 export class CypherContentImporter extends FormApplication {
   static get defaultOptions(){return foundry.utils.mergeObject(super.defaultOptions,{id:"cypher-2-toolkit-importer",title:"C2T.Importer.Title",template:`modules/${C2T_ID}/templates/importer.hbs`,width:600,height:"auto",closeOnSubmit:false,submitOnChange:false});}
   getData(){let lastImport=null;try{lastImport=JSON.parse(game.settings.get(C2T_ID,"lastImport")||"null");}catch(_){}return{isGM:game.user.isGM,samplePath:`modules/${C2T_ID}/samples/content-example.json`,lastImport};}
   activateListeners(html){super.activateListeners(html);html.find("[data-action='download-sample']").on("click",async e=>{e.preventDefault();const r=await fetch(`modules/${C2T_ID}/samples/content-example.json`);saveDataToFile(await r.text(),"application/json","cypher-2-content-example.json");});}
-  async _updateObject(_event,formData){const input=this.element.find("input[name='contentFile']")[0];const file=input?.files?.[0];if(!file)return ui.notifications.warn(c2tLocalize("C2T.Importer.SelectFile"));try{const summary=await importCypherContent(JSON.parse(await file.text()),{mode:formData.mode,prefix:formData.prefix});const lines=Object.entries(summary).map(([k,v])=>`<li><strong>${k}</strong>: ${v.created} ${c2tLocalize("C2T.Importer.Created")}, ${v.updated} ${c2tLocalize("C2T.Importer.Updated")}</li>`).join("");ui.notifications.info(c2tLocalize("C2T.Importer.Success"));new Dialog({title:c2tLocalize("C2T.Importer.Result"),content:`<div class="c2t-result"><ul>${lines}</ul></div>`,buttons:{ok:{label:"OK"}}}).render(true);this.render(false);}catch(error){console.error(`${C2T_ID} | Import failed`,error);ui.notifications.error(`${c2tLocalize("C2T.Importer.Failed")}: ${error.message}`);}}
+  async _updateObject(_event,formData){
+    const input=this.element.find("input[name='contentFile']")[0];
+    const file=input?.files?.[0];
+    if(!file)return ui.notifications.warn(c2tLocalize("C2T.Importer.SelectFile"));
+    try{
+      const payload=JSON.parse(await file.text());
+      const prefix=formData.prefix || payload.meta?.packPrefix || "cypher-2";
+      const summary=await importCypherContent(payload,{mode:formData.mode,prefix});
+      const lines=Object.entries(summary).map(([k,v])=>`<li><strong>${k}</strong>: ${v.created} ${c2tLocalize("C2T.Importer.Created")}, ${v.updated} ${c2tLocalize("C2T.Importer.Updated")}</li>`).join("");
+      const hasIntrusions=(payload.abilities??[]).some(entry=>entry.playerIntrusion);
+      const buttons={ok:{label:"OK"}};
+      if(hasIntrusions) buttons.distribute={icon:'<i class="fa-solid fa-users"></i>',label:c2tLocalize("C2T.PlayerIntrusions.Distribute"),callback:()=>distributePlayerIntrusions(payload,prefix)};
+      ui.notifications.info(c2tLocalize("C2T.Importer.Success"));
+      new Dialog({title:c2tLocalize("C2T.Importer.Result"),content:`<div class="c2t-result"><ul>${lines}</ul></div>`,buttons,default:hasIntrusions?"distribute":"ok"}).render(true);
+      this.render(false);
+    }catch(error){console.error(`${C2T_ID} | Import failed`,error);ui.notifications.error(`${c2tLocalize("C2T.Importer.Failed")}: ${error.message}`);}
+  }
 }

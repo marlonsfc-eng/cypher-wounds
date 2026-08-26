@@ -1,5 +1,6 @@
 const ID = "cypher-2-toolkit";
 const fget = (document, key) => document?.getFlag?.(ID, key);
+const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[character]);
 
 async function findImportedAbility(sourceId) {
   for (const pack of game.packs) {
@@ -201,6 +202,55 @@ async function useNativeItemRoll(actor, item) {
   }
 }
 
+function isPlayerIntrusion(item) {
+  return item?.type === "ability" && Boolean(fget(item, "playerIntrusion"));
+}
+
+function confirmPlayerIntrusion(actor, item) {
+  return new Promise(resolve => {
+    let answered = false;
+    new Dialog({
+      title: game.i18n.format("C2T.PlayerIntrusions.ConfirmTitle", {name: item.name}),
+      content: `<p>${game.i18n.format("C2T.PlayerIntrusions.ConfirmUse", {actor: escapeHtml(actor.name), name: escapeHtml(item.name)})}</p><p class="hint">${game.i18n.localize("C2T.PlayerIntrusions.GmApproval")}</p>`,
+      buttons: {
+        use: {icon: '<i class="fa-solid fa-star"></i>', label: game.i18n.localize("C2T.PlayerIntrusions.SpendXp"), callback: () => { answered = true; resolve(true); }},
+        cancel: {label: game.i18n.localize("C2T.PlayerIntrusions.Cancel"), callback: () => { answered = true; resolve(false); }}
+      },
+      default: "use",
+      close: () => { if (!answered) resolve(false); }
+    }, {width: 430}).render(true);
+  });
+}
+
+async function usePlayerIntrusion(actor, item) {
+  if (!isPlayerIntrusion(item) || !(game.user.isGM || actor.isOwner || item.isOwner)) return;
+  const currentXp = Math.max(0, Number(actor.system?.basic?.xp) || 0);
+  if (currentXp < 1) return ui.notifications.warn(game.i18n.format("C2T.PlayerIntrusions.NotEnoughXp", {actor: actor.name}));
+  if (!await confirmPlayerIntrusion(actor, item)) return;
+  let spent = false;
+  try {
+    await actor.update({"system.basic.xp": currentXp - 1});
+    spent = true;
+    const link = `@UUID[${item.uuid}]{${item.name}}`;
+    const description = String(item.system?.description ?? item.system?.basic?.description ?? "");
+    const content = await TextEditor.enrichHTML(`<article class="c2t-player-intrusion-chat"><h3><i class="fa-solid fa-star"></i> ${game.i18n.localize("C2T.PlayerIntrusions.ChatTitle")}</h3><p>${game.i18n.format("C2T.PlayerIntrusions.ChatUse", {actor: actor.name, intrusion: link})}</p>${description ? `<div>${description}</div>` : ""}</article>`, {async: true});
+    await ChatMessage.create({speaker: ChatMessage.getSpeaker({actor}), content});
+    try {
+      await item.update({
+        [`flags.${ID}.intrusionUses`]: Math.max(0, Number(fget(item, "intrusionUses")) || 0) + 1,
+        [`flags.${ID}.lastIntrusionUse`]: new Date().toISOString()
+      });
+    } catch (trackingError) {
+      console.warn(`${ID} | Could not update Player Intrusion usage metadata`, trackingError);
+    }
+    ui.notifications.info(game.i18n.format("C2T.PlayerIntrusions.XpSpent", {actor: actor.name, name: item.name}));
+  } catch (error) {
+    if (spent) await actor.update({"system.basic.xp": currentXp});
+    console.error(`${ID} | Player intrusion use failed`, error);
+    ui.notifications.error(error.message);
+  }
+}
+
 async function migrateImportedAbilities() {
   if (!game.user.isGM) return;
   for (const actor of game.actors ?? []) {
@@ -235,6 +285,20 @@ Hooks.on("renderActorSheet", (app, html) => {
     const itemId = row.attr("data-item-id") ?? row.data("item-id");
     const item = actor.items.get(itemId);
     if (!item || fget(item, "category") !== "abilities") return;
+
+    if (isPlayerIntrusion(item)) {
+      row.find(".item-roll, .c2t-native-fallback").addClass("c2t-hidden-player-intrusion-roll");
+      row.find(".c2t-player-intrusion-use").remove();
+      const use = $(`<a class="item-control c2t-player-intrusion-use" title="${game.i18n.localize("C2T.PlayerIntrusions.UseHint")}"><i class="fa-solid fa-star"></i><span>1 XP</span></a>`);
+      use.on("click", async event => {
+        event.preventDefault();
+        event.stopPropagation();
+        await usePlayerIntrusion(actor, item);
+      });
+      const controls = row.find(".item-controls").first();
+      controls.length ? controls.prepend(use) : row.append(use);
+      return;
+    }
 
     // Never alter or remove the Cypher System's native .item-roll button.
     // Only add a fallback if the active sheet template does not render it.
