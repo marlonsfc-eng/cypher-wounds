@@ -1,5 +1,11 @@
 # Cypher 2 Toolkit
 
+## v0.23.2
+
+- Remove a associação automática das Player Intrusions com Types antigos de Numenera.
+- Importa todas as intrusões somente como Abilities, organizadas em `General Abilities → Player Intrusions` no compêndio.
+- Mantém a categoria de ficha `Player Intrusion`, o custo automático de 1 XP e a alocação manual pelo Mestre.
+
 ## v0.23.1
 
 - Corrige a categoria das intrusões para o nome exato `Player Intrusion` usado na ficha.

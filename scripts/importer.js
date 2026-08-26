@@ -14,7 +14,6 @@ function resolveContentLinks(content, context) {
     return `@UUID[${linked.uuid}]{${String(label ?? linked.name).trim()}}`;
   });
 }
-function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, character => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"})[character]); }
 function htmlFromEntry(entry, context=null) {
   if (entry.html) return resolveContentLinks(entry.html, context);
   if (entry.description) return `<div class="c2t-imported-description">${resolveContentLinks(entry.description, context)}</div>`;
@@ -140,7 +139,7 @@ function itemData(entry, category="abilities", context=null) {
       tags: Array.isArray(entry.tags) ? entry.tags : [], effect: entry.effect ?? null,
       explanation: entry.explanation ?? null, explanationPtBr: entry.explanationPtBr ?? null,
       randomCypher: Boolean(entry.randomCypher ?? false),
-      playerIntrusion: Boolean(entry.playerIntrusion ?? false), intrusionType: entry.intrusionType ?? null
+      playerIntrusion: Boolean(entry.playerIntrusion ?? false)
     }}
   }, base, {inplace:false, overwrite:true});
 }
@@ -186,7 +185,12 @@ async function folderForEntry(pack, entry, category, context) {
     const origin = resolveOrigin(entry, category, context);
     const rootName = origin?.category === "type" ? "Types" : origin?.category === "focus" ? "Foci" : "General Abilities";
     const root = await ensureCompendiumFolder(pack, rootName);
-    if (!origin || origin.category === "general") return root?.id ?? null;
+    if (!origin) return root?.id ?? null;
+    if (origin.category === "general") {
+      if (!origin.name || origin.name === "General Abilities") return root?.id ?? null;
+      const group = await ensureCompendiumFolder(pack, origin.name, root?.id ?? null);
+      return group?.id ?? root?.id ?? null;
+    }
     const source = await ensureCompendiumFolder(pack, origin.name, root?.id ?? null);
     const tier = Number(entry.tier);
     if (Number.isFinite(tier) && tier > 0) {
@@ -311,54 +315,10 @@ export async function importCypherContent(payload,options={}){
   await game.settings.set(C2T_ID,"lastImport",JSON.stringify({date:new Date().toISOString(),meta:payload.meta??{},summary})); return summary;
 }
 
-async function importedPlayerIntrusions() {
-  const found = [];
-  for (const pack of game.packs ?? []) {
-    if (pack.documentName !== "Item" || !pack.collection.startsWith("world.")) continue;
-    try {
-      const documents = await pack.getDocuments();
-      found.push(...documents.filter(item => item.type === "ability" && item.getFlag(C2T_ID, "playerIntrusion")));
-    } catch (error) {
-      console.warn(`${C2T_ID} | Could not inspect ${pack.collection} for Player Intrusions`, error);
-    }
-  }
-  return [...new Map(found.map(item => [item.getFlag(C2T_ID, "sourceId") ?? item.uuid, item])).values()];
-}
-
-export async function distributePlayerIntrusions() {
-  const actors = Array.from(game.actors ?? []).filter(actor => actor.type === "pc").sort((a, b) => a.name.localeCompare(b.name));
-  const imported = await importedPlayerIntrusions();
-  const types = [...new Set(imported.map(item => item.getFlag(C2T_ID, "intrusionType")).filter(Boolean).map(String))].sort();
-  if (!actors.length || !types.length) return ui.notifications.warn(c2tLocalize("C2T.PlayerIntrusions.NoDistributionOptions"));
-  const content = `<form class="c2t-intrusion-distributor"><p>${c2tLocalize("C2T.PlayerIntrusions.DistributionHint")}</p><div class="form-group"><label>${c2tLocalize("C2T.PlayerIntrusions.Character")}</label><select name="actor">${actors.map(actor => `<option value="${escapeHtml(actor.id)}">${escapeHtml(actor.name)}</option>`).join("")}</select></div><div class="form-group"><label>${c2tLocalize("C2T.PlayerIntrusions.Type")}</label><select name="intrusionType">${types.map(type => `<option value="${escapeHtml(type)}">${escapeHtml(type)}</option>`).join("")}</select></div></form>`;
-  new Dialog({title: c2tLocalize("C2T.PlayerIntrusions.DistributeTitle"), content, buttons: {
-    add: {icon: '<i class="fa-solid fa-user-plus"></i>', label: c2tLocalize("C2T.PlayerIntrusions.AddToSheet"), callback: async html => {
-      const actor = game.actors.get(String(html.find("[name=actor]").val()));
-      const intrusionType = String(html.find("[name=intrusionType]").val());
-      if (!actor) return ui.notifications.warn(c2tLocalize("C2T.PlayerIntrusions.SourcePackMissing"));
-      const existing = new Set(Array.from(actor.items ?? []).map(item => item.getFlag(C2T_ID, "sourceId")).filter(Boolean));
-      const sources = imported.filter(item => item.getFlag(C2T_ID, "intrusionType") === intrusionType && !existing.has(item.getFlag(C2T_ID, "sourceId")));
-      const data = sources.map(item => {
-        const clone = item.toObject();
-        delete clone._id; delete clone.folder; delete clone.sort; delete clone.ownership; delete clone._stats;
-        foundry.utils.setProperty(clone, "system.basic.cost", "1");
-        foundry.utils.setProperty(clone, "system.basic.pool", "XP");
-        foundry.utils.setProperty(clone, "system.settings.general.sorting", "Player Intrusion");
-        foundry.utils.setProperty(clone, "system.settings.rollButton.pool", "XP");
-        return clone;
-      });
-      if (data.length) await actor.createEmbeddedDocuments("Item", data);
-      ui.notifications.info(game.i18n.format("C2T.PlayerIntrusions.Distributed", {count: data.length, type: intrusionType, actor: actor.name}));
-      window.setTimeout(() => distributePlayerIntrusions(), 100);
-    }},
-    close: {label: c2tLocalize("C2T.PlayerIntrusions.Finish")}
-  }}, {width: 430}).render(true);
-}
-
 export class CypherContentImporter extends FormApplication {
   static get defaultOptions(){return foundry.utils.mergeObject(super.defaultOptions,{id:"cypher-2-toolkit-importer",title:"C2T.Importer.Title",template:`modules/${C2T_ID}/templates/importer.hbs`,width:600,height:"auto",closeOnSubmit:false,submitOnChange:false});}
   getData(){let lastImport=null;try{lastImport=JSON.parse(game.settings.get(C2T_ID,"lastImport")||"null");}catch(_){}return{isGM:game.user.isGM,samplePath:`modules/${C2T_ID}/samples/content-example.json`,lastImport};}
-  activateListeners(html){super.activateListeners(html);html.find("[data-action='download-sample']").on("click",async e=>{e.preventDefault();const r=await fetch(`modules/${C2T_ID}/samples/content-example.json`);saveDataToFile(await r.text(),"application/json","cypher-2-content-example.json");});html.find("[data-action='distribute-intrusions']").on("click",async e=>{e.preventDefault();await distributePlayerIntrusions();});}
+  activateListeners(html){super.activateListeners(html);html.find("[data-action='download-sample']").on("click",async e=>{e.preventDefault();const r=await fetch(`modules/${C2T_ID}/samples/content-example.json`);saveDataToFile(await r.text(),"application/json","cypher-2-content-example.json");});}
   async _updateObject(_event,formData){
     const input=this.element.find("input[name='contentFile']")[0];
     const file=input?.files?.[0];
@@ -368,19 +328,10 @@ export class CypherContentImporter extends FormApplication {
       const prefix=formData.prefix || payload.meta?.packPrefix || "cypher-2";
       const summary=await importCypherContent(payload,{mode:formData.mode,prefix});
       const lines=Object.entries(summary).map(([k,v])=>`<li><strong>${k}</strong>: ${v.created} ${c2tLocalize("C2T.Importer.Created")}, ${v.updated} ${c2tLocalize("C2T.Importer.Updated")}</li>`).join("");
-      const hasIntrusions=(payload.abilities??[]).some(entry=>entry.playerIntrusion);
       const buttons={ok:{label:"OK"}};
-      if(hasIntrusions) buttons.distribute={icon:'<i class="fa-solid fa-users"></i>',label:c2tLocalize("C2T.PlayerIntrusions.Distribute"),callback:()=>distributePlayerIntrusions()};
       ui.notifications.info(c2tLocalize("C2T.Importer.Success"));
-      new Dialog({title:c2tLocalize("C2T.Importer.Result"),content:`<div class="c2t-result"><ul>${lines}</ul></div>`,buttons,default:hasIntrusions?"distribute":"ok"}).render(true);
+      new Dialog({title:c2tLocalize("C2T.Importer.Result"),content:`<div class="c2t-result"><ul>${lines}</ul></div>`,buttons,default:"ok"}).render(true);
       this.render(false);
     }catch(error){console.error(`${C2T_ID} | Import failed`,error);ui.notifications.error(`${c2tLocalize("C2T.Importer.Failed")}: ${error.message}`);}
-  }
-}
-
-export class PlayerIntrusionDistributor extends FormApplication {
-  render(_force=false, _options={}) {
-    distributePlayerIntrusions();
-    return this;
   }
 }
