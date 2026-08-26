@@ -2,4 +2,5 @@ dist/
 output/
 tmp/
 private/
+imports-private/
 dist-private/
