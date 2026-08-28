@@ -157,8 +157,10 @@ async function updateDocumentsByUuid(updates) {
     if (update.uuid.startsWith("Compendium.")) {
       const parts = update.uuid.split(".");
       const collection = `${parts[1]}.${parts[2]}`;
+      const documentId = parts.at(-1);
+      if (!documentId || documentId === "Item") continue;
       if (!packs.has(collection)) packs.set(collection, []);
-      packs.get(collection).push({_id: parts.slice(3).join("."), img: update.img});
+      packs.get(collection).push({_id: documentId, img: update.img});
     } else {
       const document = await fromUuid(update.uuid);
       if (document?.documentName === "Item") world.push({_id: document.id, img: update.img});

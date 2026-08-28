@@ -449,6 +449,11 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Preserva imagens personalizadas por padrão e pode atualizar também as cópias dos Items que já estão nas fichas.
 - Guarda as associações escolhidas para que futuras importações reutilizem automaticamente os mesmos ícones.
 
+## v0.25.1
+
+- Corrige a aplicação de ícones em Items armazenados nos compêndios do mundo no Foundry 13.
+- Reconhece corretamente tanto UUIDs compactos quanto UUIDs que incluem o tipo `Item` antes do identificador do documento.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
