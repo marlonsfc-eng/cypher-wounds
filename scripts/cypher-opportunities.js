@@ -5,9 +5,9 @@ const ENABLED_SETTING = "cypherOpportunityAssistant";
 const HISTORY_LIMIT = 18;
 const HAND_SIZE = 3;
 const SOCKET_CHANNEL = `module.${MODULE_ID}`;
-const OFFER_FLAG = "cypherOffer";
 const OPPORTUNITY_CATEGORY = "Combat Opportunities";
 const SCENE_PLAN_FLAG = "cypherOpportunityPlan";
+const DRAFT_SIZE = 3;
 
 const CONTEXTS = ["combat", "defense", "social", "stealth", "exploration", "chase", "recovery", "knowledge", "survival", "dramatic"];
 
@@ -153,6 +153,8 @@ let searchQuery = "";
 let selectedCypher = "";
 const overflowTimers = new Map();
 const openOverflowDialogs = new Set();
+const opportunityDrafts = new Map();
+const openDraftDialogs = new Map();
 let state = { contexts: ["dramatic"], saved: [], history: [], collapsed: false, view: "suggestions", left: null, top: 80 };
 
 const t = (key, data = {}) => game.i18n.format(`C2T.Opportunities.${key}`, data);
@@ -369,13 +371,11 @@ function scenePlanHtml() {
   const rows = plan.map(item => {
     const entry = catalogByName.get(normalize(item.name));
     const source = entry ? cypherSources.get(normalize(entry.name)) : null;
-    const pool = item.pool ? opportunityPoolLabel(item.pool) : t("DecideWhenOffering");
-    const cost = item.cost !== null && item.cost !== "" && Number.isFinite(Number(item.cost)) ? Number(item.cost) : t("DecideWhenOffering");
     const narrative = item.narrative || (entry ? narrativeIdea(entry) : "");
     return `<article class="c2t-scene-plan-entry status-${escapeHtml(item.status || "pending")}" data-plan-id="${escapeHtml(item.id)}" data-cypher="${escapeHtml(item.name)}" draggable="true">
       <span class="c2t-scene-plan-handle" title="${t("DragToReorder")}"><i class="fa-solid fa-grip-vertical"></i></span>
       <img src="${source?.img || "icons/svg/mystery-man.svg"}" alt="">
-      <div class="c2t-scene-plan-content"><header><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(planStatusLabel(item.status))}</span></header><p>${escapeHtml(narrative)}</p><small><i class="fa-solid fa-user"></i> ${escapeHtml(plannedActorLabel(item))} <i class="fa-solid fa-gauge-high"></i> ${escapeHtml(pool)} · ${escapeHtml(cost)}</small></div>
+      <div class="c2t-scene-plan-content"><header><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(planStatusLabel(item.status))}</span></header><p>${escapeHtml(narrative)}</p><small><i class="fa-solid fa-user"></i> ${escapeHtml(plannedActorLabel(item))}</small></div>
       <div class="c2t-scene-plan-actions"><button type="button" data-plan-action="offer" title="${t("OfferNow")}" ${entry && source ? "" : "disabled"}><i class="fa-solid fa-gift"></i> ${t("OfferNow")}</button><button type="button" data-plan-action="edit" title="${t("EditScenePlan")}"><i class="fa-solid fa-pen"></i></button><button type="button" data-plan-action="${item.status === "skipped" ? "restore" : "skip"}" title="${item.status === "skipped" ? t("RestorePending") : t("MarkSkipped")}"><i class="fa-solid ${item.status === "skipped" ? "fa-rotate-left" : "fa-forward"}"></i></button><button type="button" data-plan-action="remove" title="${t("RemoveFromPlan")}"><i class="fa-solid fa-trash"></i></button></div>
     </article>`;
   }).join("");
@@ -452,7 +452,7 @@ function panelHtml() {
       <div class="c2t-opportunity-scene-tools">
         <div><strong>${t("SceneContext")}</strong><small>${t("ContextHint")}</small></div>
         <div class="c2t-opportunity-contexts">${CONTEXTS.map(context => `<button type="button" data-context="${context}" class="${state.contexts.includes(context) ? "active" : ""}">${contextLabel(context)}</button>`).join("")}</div>
-        <div class="c2t-opportunity-toolbar"><button type="button" data-panel-action="draw"><i class="fa-solid fa-shuffle"></i> ${t("NewHand")}</button><button type="button" data-panel-action="dramatic"><i class="fa-solid fa-bolt"></i> ${t("DramaticMoment")}</button></div>
+        <div class="c2t-opportunity-toolbar"><button type="button" data-panel-action="draw"><i class="fa-solid fa-shuffle"></i> ${t("NewHand")}</button><button type="button" data-panel-action="dramatic"><i class="fa-solid fa-bolt"></i> ${t("DramaticMoment")}</button><button type="button" class="c2t-opportunity-distribute" data-panel-action="distribute"><i class="fa-solid fa-gifts"></i> ${t("DistributeScene")}</button><button type="button" class="c2t-opportunity-draft" data-panel-action="draft"><i class="fa-solid fa-layer-group"></i> ${t("DraftScene")}</button></div>
       </div>
       <div data-opportunity-workspace>${workspaceHtml()}</div>
       <footer class="c2t-opportunity-footer"><span>${t("History", { count: state.history.length })}</span><button type="button" data-panel-action="clear-history">${t("ClearHistory")}</button></footer>
@@ -524,43 +524,6 @@ function actorCypherLimit(actor) {
   return Number.isFinite(limit) ? Math.max(0, limit) : 0;
 }
 
-const OPPORTUNITY_POOLS = new Set(["might", "speed", "intellect"]);
-
-function opportunityPoolLabel(pool) {
-  const key = pool === "speed" ? "Speed" : pool === "intellect" ? "Intellect" : "Might";
-  return game.i18n.localize(`C2T.Resources.${key}`);
-}
-
-function opportunityPoolPath(actor, pool) {
-  const teen = actor?.system?.basic?.unmaskedForm === "Teen";
-  return teen ? `system.teen.pools.${pool}.value` : `system.pools.${pool}.value`;
-}
-
-function opportunityPoolValue(actor, pool) {
-  const teen = actor?.system?.basic?.unmaskedForm === "Teen";
-  const root = teen ? actor?.system?.teen?.pools : actor?.system?.pools;
-  return Number(root?.[pool]?.value ?? 0);
-}
-
-async function spendOpportunityCost(actor, pool, cost) {
-  const normalizedPool = OPPORTUNITY_POOLS.has(pool) ? pool : "might";
-  const normalizedCost = Math.max(0, Math.trunc(Number(cost) || 0));
-  const current = opportunityPoolValue(actor, normalizedPool);
-  if (current < normalizedCost) return {ok: false, pool: normalizedPool, cost: normalizedCost, current};
-  const path = opportunityPoolPath(actor, normalizedPool);
-  await actor.update({[path]: current - normalizedCost});
-  return {ok: true, pool: normalizedPool, cost: normalizedCost, current, path};
-}
-
-async function restoreOpportunityCost(actor, payment) {
-  if (payment?.ok && payment.cost > 0) await actor.update({[payment.path]: payment.current});
-}
-
-async function notifyInsufficientPool(actor, pool, cost, current) {
-  const content = `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-circle-exclamation"></i> ${t("CannotAcceptTitle")}</h3><p>${t("CannotAfford", {actor: actor.name, pool: opportunityPoolLabel(pool), cost, current})}</p></div>`;
-  await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content, whisper: actorAudience(actor)});
-}
-
 function opportunityItemDescription(description, opportunity) {
   const container = document.createElement("div");
   container.innerHTML = String(description ?? "");
@@ -570,15 +533,7 @@ function opportunityItemDescription(description, opportunity) {
   }
   const narrative = escapeHtml(opportunity.narrative).replace(/\n/g, "<br>");
   const narrativeBlock = narrative ? `<p><strong>${t("Narrative")}:</strong> ${narrative}</p>` : "";
-  return `<div class="c2t-acquired-opportunity">${narrativeBlock}<p><strong>${t("AcquisitionCost")}:</strong> ${opportunity.cost} ${opportunityPoolLabel(opportunity.pool)} (${t("EdgeIgnored")})</p></div>${container.innerHTML}`;
-}
-
-function offerChatContent(entry, actor, item, narrative, pool, cost, interactive = false) {
-  const link = item?.uuid ? `@UUID[${item.uuid}]{${entry.name}}` : `<strong>${entry.name}</strong>`;
-  const actions = interactive ? `<div class="c2t-cypher-offer-actions"><button type="button" data-c2t-offer-action="accept"><i class="fa-solid fa-check"></i> ${t("Accept")}</button><button type="button" data-c2t-offer-action="reject"><i class="fa-solid fa-xmark"></i> ${t("Reject")}</button></div>` : "";
-  const narrativeHtml = escapeHtml(narrative).replace(/\n/g, "<br>");
-  const narrativeBlock = narrativeHtml ? `<p><em>${narrativeHtml}</em></p>` : "";
-  return `<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-wand-sparkles"></i> ${t("ChatTitle")}</h3><p>${t("ChatOffer", { actor: actor.name, cypher: link })}</p>${narrativeBlock}<p class="c2t-opportunity-cost"><strong>${t("OpportunityCost", {cost, pool: opportunityPoolLabel(pool)})}</strong> ${t("EdgeIgnored")}</p>${actions}</div>`;
+  return `${narrativeBlock ? `<div class="c2t-acquired-opportunity">${narrativeBlock}</div>` : ""}${container.innerHTML}`;
 }
 
 function opportunityAbilityData(item, opportunity) {
@@ -594,8 +549,7 @@ function opportunityAbilityData(item, opportunity) {
       ...opportunity,
       sourceUuid: opportunity.sourceUuid ?? item.uuid ?? null,
       acquiredAt: opportunity.acquiredAt ?? new Date().toISOString(),
-      usedOnce: Boolean(opportunity.usedOnce),
-      useCount: Math.max(0, Number(opportunity.useCount) || 0)
+      disposable: true
     }
   }, {inplace: false, overwrite: true});
   return {
@@ -607,7 +561,7 @@ function opportunityAbilityData(item, opportunity) {
       description,
       archived: Boolean(original.system?.archived),
       favorite: Boolean(original.system?.favorite),
-      basic: {cost: opportunity.usedOnce ? "1" : "0", pool: opportunity.usedOnce ? "XP" : "Pool"},
+      basic: {cost: "", pool: ""},
       settings: {
         general: {sorting: OPPORTUNITY_CATEGORY, spellTier: "low", unmaskedForm: "Mask"},
         rollButton: {pool: "Pool", skill: "Practiced", assets: 0, effort1: 0, effort2: 0, effort3: 0, freeEffort: 0, stepModifier: "eased", additionalSteps: 0, additionalCost: 0, damage: 0, damagePerLOE: 3, teen: "", bonus: 0, macroUuid: "", macroExecuteAsGM: false}
@@ -628,55 +582,29 @@ async function cloneItemToActor(item, actor, opportunity = null) {
   return created[0] ?? null;
 }
 
-async function sendDirectDeliveryNotice(actor, item, narrative, pool, cost) {
+async function sendDirectDeliveryNotice(actor, item, narrative) {
   const link = item?.uuid ? `@UUID[${item.uuid}]{${item.name}}` : `<strong>${item.name}</strong>`;
   const narrativeHtml = escapeHtml(narrative).replace(/\n/g, "<br>");
   const narrativeBlock = narrativeHtml ? `<p><em>${narrativeHtml}</em></p>` : "";
-  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-gift"></i> ${t("ReceivedTitle")}</h3><p>${t("ReceivedDirect", {actor: actor.name, cypher: link})}</p>${narrativeBlock}<p class="c2t-opportunity-cost">${t("CostPaid", {cost, pool: opportunityPoolLabel(pool)})} ${t("EdgeIgnored")}</p></div>`, {async: true});
+  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat"><h3><i class="fa-solid fa-gift"></i> ${t("ReceivedTitle")}</h3><p>${t("ReceivedDirect", {actor: actor.name, cypher: link})}</p>${narrativeBlock}</div>`, {async: true});
   await ChatMessage.create({speaker: ChatMessage.getSpeaker(), content, whisper: actorAudience(actor)});
 }
 
-async function createInteractiveOffer(entry, actor, item, narrative, pool, cost, mode, planContext = {}) {
-  const content = await TextEditor.enrichHTML(offerChatContent(entry, actor, item, narrative, pool, cost, true), {async: true});
-  const data = {
-    speaker: ChatMessage.getSpeaker(), content,
-    flags: {[MODULE_ID]: {[OFFER_FLAG]: {actorId: actor.id, itemUuid: item.uuid, itemName: entry.name, narrative, pool, cost, status: "pending", planSceneId: planContext.sceneId ?? null, planId: planContext.planId ?? null}}}
-  };
-  if (mode === "whisper") data.whisper = actorAudience(actor);
-  await ChatMessage.create(data);
+async function deliverOpportunity(entry, actor, {narrative = "", delivery = "direct", notify = true} = {}) {
+  const item = await resolveSource(entry);
+  if (!item) throw new Error(t("ItemNotFound"));
+  const created = await cloneItemToActor(item, actor, {narrative, delivery, sourceUuid: item.uuid});
+  if (notify) await sendDirectDeliveryNotice(actor, created ?? item, narrative);
+  return created;
 }
 
 async function executeOffer(entry, html, planContext = {}) {
   const actor = game.actors.get(String(html.find("[name=actor]").val()));
-  const mode = String(html.find("[name=mode]:checked").val() ?? "remind");
   const narrative = String(html.find("[name=narrative]").val() ?? "").trim();
-  const pool = String(html.find("[name=pool]").val() ?? "might");
-  const cost = Math.max(0, Math.trunc(Number(html.find("[name=cost]").val()) || 0));
   if (!actor) return ui.notifications.warn(t("ChooseActor")), false;
-  const item = await resolveSource(entry);
-  if (!item) return ui.notifications.warn(t("ItemNotFound")), false;
-  if (mode === "add") {
-    const payment = await spendOpportunityCost(actor, pool, cost);
-    if (!payment.ok) {
-      await notifyInsufficientPool(actor, payment.pool, payment.cost, payment.current);
-      return false;
-    }
-    let created;
-    try {
-      created = await cloneItemToActor(item, actor, {narrative, pool: payment.pool, cost: payment.cost, delivery: "direct"});
-    } catch (error) {
-      await restoreOpportunityCost(actor, payment);
-      throw error;
-    }
-    await sendDirectDeliveryNotice(actor, created ?? item, narrative, payment.pool, payment.cost);
-    await updatePlanStatus(planContext.sceneId, planContext.planId, "delivered");
-    ui.notifications.info(t("Added", { cypher: entry.name, actor: actor.name }));
-  } else if (mode === "whisper" || mode === "public") {
-    await createInteractiveOffer(entry, actor, item, narrative, pool, cost, mode, planContext);
-    await updatePlanStatus(planContext.sceneId, planContext.planId, "offered");
-  } else {
-    ui.notifications.info(t("Reminder", { actor: actor.name, cypher: entry.name }));
-  }
+  await deliverOpportunity(entry, actor, {narrative, delivery: "direct"});
+  await updatePlanStatus(planContext.sceneId, planContext.planId, "delivered");
+  ui.notifications.info(t("Added", { cypher: entry.name, actor: actor.name }));
   addHistory([entry.name]);
   state.saved = state.saved.filter(name => normalize(name) !== normalize(entry.name));
   const index = hand.findIndex(current => normalize(current.name) === normalize(entry.name));
@@ -689,19 +617,10 @@ async function executeOffer(entry, html, planContext = {}) {
 function openOfferDialog(entry, defaults = {}) {
   const actors = actorOptions();
   if (!actors.length) return ui.notifications.warn(t("NoActors"));
-  const selectedPool = OPPORTUNITY_POOLS.has(defaults.pool) ? defaults.pool : "might";
-  const defaultCost = defaults.cost !== null && defaults.cost !== "" && Number.isFinite(Number(defaults.cost)) ? Math.max(0, Math.trunc(Number(defaults.cost))) : 1;
   const content = `<form class="c2t-opportunity-offer"><div class="form-group"><label>${t("Character")}</label><select name="actor">${actors.map(actor => `<option value="${actor.id}" ${actor.id === defaults.actorId ? "selected" : ""}>${escapeHtml(actor.name)}</option>`).join("")}</select></div>
-    <div class="form-group c2t-opportunity-narrative"><label>${t("Narrative")}</label><textarea name="narrative" rows="4" placeholder="${t("NarrativePlaceholder")}">${escapeHtml(defaults.narrative ?? "")}</textarea></div>
-    <div class="c2t-opportunity-payment"><div class="form-group"><label>${t("Pool")}</label><select name="pool"><option value="might" ${selectedPool === "might" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Might")}</option><option value="speed" ${selectedPool === "speed" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Speed")}</option><option value="intellect" ${selectedPool === "intellect" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Intellect")}</option></select></div><div class="form-group"><label>${t("Cost")}</label><input type="number" name="cost" value="${defaultCost}" min="0" step="1"></div></div><p class="hint">${t("CostHint")}</p>
-    <fieldset><legend>${t("Delivery")}</legend>
-    <label><input type="radio" name="mode" value="remind"> ${t("ModeRemind")}</label>
-    <label><input type="radio" name="mode" value="add"> ${t("ModeAdd")}</label>
-    <label><input type="radio" name="mode" value="whisper" checked> ${t("ModeWhisper")}</label>
-    <label><input type="radio" name="mode" value="public"> ${t("ModePublic")}</label>
-  </fieldset></form>`;
+    <div class="form-group c2t-opportunity-narrative"><label>${t("Narrative")}</label><textarea name="narrative" rows="4" placeholder="${t("NarrativePlaceholder")}">${escapeHtml(defaults.narrative ?? "")}</textarea></div><p class="hint">${t("DirectDeliveryHint")}</p></form>`;
   const dialog = new Dialog({ title: `${t("Offer")}: ${entry.name}`, content, buttons: {
-    apply: { icon: '<i class="fa-solid fa-check"></i>', label: t("ConfirmOffer"), callback: html => executeOffer(entry, html, defaults) },
+    apply: { icon: '<i class="fa-solid fa-gift"></i>', label: t("DeliverNow"), callback: html => executeOffer(entry, html, defaults) },
     cancel: { label: t("Cancel") }
   } }, { width: 470 });
   dialog.render(true);
@@ -716,19 +635,15 @@ function openPlanDialog(entry, existing = null) {
     <p class="hint">${t("PlanDialogHint", {scene: escapeHtml(scene.name)})}</p>
     <div class="form-group c2t-opportunity-narrative"><label>${t("PlannedTrigger")}</label><textarea name="narrative" rows="4" placeholder="${escapeHtml(narrativeIdea(entry))}">${escapeHtml(current.narrative ?? "")}</textarea></div>
     <div class="form-group"><label>${t("PlannedTarget")}</label><select name="actor"><option value="">${t("DecideWhenOffering")}</option>${actors.map(actor => `<option value="${actor.id}" ${actor.id === current.actorId ? "selected" : ""}>${escapeHtml(actor.name)}</option>`).join("")}</select></div>
-    <div class="c2t-opportunity-payment"><div class="form-group"><label>${t("PlannedPool")}</label><select name="pool"><option value="">${t("DecideWhenOffering")}</option><option value="might" ${current.pool === "might" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Might")}</option><option value="speed" ${current.pool === "speed" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Speed")}</option><option value="intellect" ${current.pool === "intellect" ? "selected" : ""}>${game.i18n.localize("C2T.Resources.Intellect")}</option></select></div><div class="form-group"><label>${t("PlannedCost")}</label><input type="number" name="cost" value="${current.cost !== null && current.cost !== "" && Number.isFinite(Number(current.cost)) ? Number(current.cost) : ""}" min="0" step="1" placeholder="1"></div></div>
   </form>`;
   new Dialog({title: `${t(existing ? "EditScenePlan" : "AddToScenePlan")}: ${entry.name}`, content, buttons: {
     save: {icon: '<i class="fa-solid fa-check"></i>', label: t("SavePlan"), callback: async html => {
       const plan = scenePlan(scene);
       const id = existing?.id ?? foundry.utils.randomID();
-      const rawCost = String(html.find("[name=cost]").val() ?? "").trim();
       const item = {
         ...current, id, name: entry.name,
         narrative: String(html.find("[name=narrative]").val() ?? "").trim(),
         actorId: String(html.find("[name=actor]").val() ?? ""),
-        pool: String(html.find("[name=pool]").val() ?? ""),
-        cost: rawCost === "" ? null : Math.max(0, Math.trunc(Number(rawCost) || 0)),
         status: current.status ?? "pending",
         createdAt: current.createdAt ?? new Date().toISOString(), updatedAt: new Date().toISOString()
       };
@@ -742,72 +657,159 @@ function openPlanDialog(entry, existing = null) {
   }}, {width: 520}).render(true);
 }
 
-async function updateOfferMessage(message, offer, actor, item, status, responder) {
-  const link = item?.uuid ? `@UUID[${item.uuid}]{${item.name}}` : `<strong>${offer.itemName}</strong>`;
-  const key = status === "accepted" ? "OfferAccepted" : "OfferRejected";
-  const icon = status === "accepted" ? "fa-circle-check" : "fa-circle-xmark";
-  const content = await TextEditor.enrichHTML(`<div class="c2t-opportunity-chat resolved ${status}"><h3><i class="fa-solid ${icon}"></i> ${t("ChatTitle")}</h3><p>${t(key, {actor: actor.name, cypher: link, user: responder.name, cost: offer.cost, pool: opportunityPoolLabel(offer.pool)})}</p></div>`, {async: true});
-  await message.update({content, [`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: status});
+function activePlayerOwner(actor) {
+  return Array.from(game.users ?? []).filter(user => user.active && !user.isGM && actor.testUserPermission(user, "OWNER")).sort((a, b) => a.id.localeCompare(b.id))[0] ?? null;
 }
 
-async function handleOfferDecision(payload) {
-  if (!game.user.isGM) return;
-  const message = game.messages.get(payload.messageId);
-  const offer = message?.getFlag(MODULE_ID, OFFER_FLAG);
-  const actor = game.actors.get(offer?.actorId);
-  const responder = game.users.get(payload.userId);
-  if (!message || !offer || offer.status !== "pending" || !actor || !responder) return;
-  if (!responder.isGM && !actor.testUserPermission(responder, "OWNER")) return;
-  if (payload.decision === "reject") {
-    await updateOfferMessage(message, offer, actor, null, "rejected", responder);
-    await updatePlanStatus(offer.planSceneId, offer.planId, "rejected");
-    return;
+function scenePlayerActors() {
+  const scene = planningScene();
+  if (!scene) return [];
+  const actors = new Map();
+  for (const token of scene.tokens ?? []) {
+    const actor = token.actor;
+    if (!actor || actor.type !== "pc" || token.hidden || !activePlayerOwner(actor)) continue;
+    actors.set(actor.id, actor);
   }
-  if (payload.decision !== "accept") return;
-  await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "processing"});
-  let payment = null;
-  try {
-    const source = await fromUuid(offer.itemUuid);
-    if (!source || source.documentName !== "Item") throw new Error(t("ItemNotFound"));
-    payment = await spendOpportunityCost(actor, offer.pool, offer.cost);
-    if (!payment.ok) {
-      await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "pending", [`flags.${MODULE_ID}.${OFFER_FLAG}.lastAttempt`]: Date.now()});
-      await notifyInsufficientPool(actor, payment.pool, payment.cost, payment.current);
-      return;
-    }
-    const created = await cloneItemToActor(source, actor, {narrative: offer.narrative, pool: payment.pool, cost: payment.cost, delivery: "accepted-offer"});
-    await updateOfferMessage(message, offer, actor, created ?? source, "accepted", responder);
-    await updatePlanStatus(offer.planSceneId, offer.planId, "accepted");
-  } catch (error) {
-    await restoreOpportunityCost(actor, payment);
-    await message.update({[`flags.${MODULE_ID}.${OFFER_FLAG}.status`]: "pending"});
-    console.error(`${MODULE_ID} | Cypher offer acceptance failed`, error);
-    ui.notifications.error(error.message);
+  return Array.from(actors.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function shuffled(entries) {
+  const result = [...entries];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(Math.random() * (index + 1));
+    [result[index], result[other]] = [result[other], result[index]];
   }
+  return result;
 }
 
-async function dispatchDecision(payload) {
-  const data = {...payload, userId: game.user.id};
-  if (game.user.isGM) return handleOfferDecision(data);
-  if (!primaryActiveGm()) return ui.notifications.warn(t("NoActiveGm"));
-  game.socket.emit(SOCKET_CHANNEL, {action: "offerDecision", ...data});
+function entriesForContext(context) {
+  return CATALOG.filter(entry => entry.tags.includes(context) && cypherSources.has(normalize(entry.name)));
 }
 
-function bindOfferMessage(message, html) {
-  const offer = message.getFlag(MODULE_ID, OFFER_FLAG);
-  if (!offer || offer.status !== "pending") return;
-  const actor = game.actors.get(offer.actorId);
-  const allowed = actor && (game.user.isGM || actor.testUserPermission(game.user, "OWNER"));
-  const root = html?.[0] ?? html;
-  if (!(root instanceof HTMLElement)) return;
-  for (const button of root.querySelectorAll("[data-c2t-offer-action]")) {
-    button.disabled = !allowed;
-    button.addEventListener("click", async event => {
+async function distributeSceneOpportunities(context) {
+  const actors = scenePlayerActors();
+  if (!actors.length) return ui.notifications.warn(t("NoScenePlayers"));
+  const candidates = shuffled(entriesForContext(context));
+  if (candidates.length < actors.length) return ui.notifications.warn(t("NotEnoughUnique", {needed: actors.length, available: candidates.length}));
+  const selected = candidates.slice(0, actors.length);
+  for (let index = 0; index < actors.length; index += 1) {
+    await deliverOpportunity(selected[index], actors[index], {delivery: `scene-${context}`});
+  }
+  addHistory(selected.map(entry => entry.name));
+  await saveState();
+  renderPanel();
+  ui.notifications.info(t("DistributedScene", {count: actors.length, context: contextLabel(context)}));
+}
+
+function draftOption(entry) {
+  const source = cypherSources.get(normalize(entry.name));
+  return {
+    name: entry.name,
+    img: source?.img || "icons/svg/mystery-man.svg",
+    effect: effectSummary(source?.description, 260),
+    narrative: narrativeIdea(entry)
+  };
+}
+
+function showDraftDialog(payload) {
+  if (payload.targetUserId !== game.user.id || openDraftDialogs.has(payload.draftId)) return;
+  const actor = game.actors.get(payload.actorId);
+  if (!actor) return;
+  const cards = (payload.options ?? []).map(option => `<button type="button" class="c2t-draft-card" data-draft-choice="${escapeHtml(option.name)}"><img src="${escapeHtml(option.img)}" alt=""><span class="c2t-draft-card-name">${escapeHtml(option.name)}</span><span class="c2t-draft-card-effect">${option.effect}</span><span class="c2t-draft-card-narrative"><i class="fa-solid fa-lightbulb"></i> ${escapeHtml(option.narrative)}</span></button>`).join("");
+  const dialog = new Dialog({
+    title: t("DraftDialogTitle", {actor: actor.name}),
+    content: `<div class="c2t-draft-dialog"><p>${t("DraftDialogHint", {context: contextLabel(payload.context)})}</p><div class="c2t-draft-cards">${cards}</div></div>`,
+    buttons: {close: {label: t("ChooseLater")}},
+    render: html => html.find("[data-draft-choice]").on("click", async event => {
       event.preventDefault();
-      root.querySelectorAll("[data-c2t-offer-action]").forEach(element => { element.disabled = true; });
-      await dispatchDecision({messageId: message.id, decision: button.dataset.c2tOfferAction});
-    });
+      html.find("[data-draft-choice]").prop("disabled", true);
+      await submitDraftChoice({draftId: payload.draftId, actorId: actor.id, choice: event.currentTarget.dataset.draftChoice});
+      dialog.close();
+    }),
+    close: () => openDraftDialogs.delete(payload.draftId)
+  }, {width: 820, resizable: true});
+  openDraftDialogs.set(payload.draftId, dialog);
+  dialog.render(true);
+}
+
+async function resolveDraftChoice(payload) {
+  if (!game.user.isGM || primaryActiveGm()?.id !== game.user.id) return;
+  const draft = opportunityDrafts.get(payload.draftId);
+  const actor = game.actors.get(payload.actorId);
+  const responder = game.users.get(payload.userId);
+  if (!draft || draft.status !== "pending" || !actor || !responder || draft.actorId !== actor.id || draft.userId !== responder.id) return;
+  if (!responder.isGM && !actor.testUserPermission(responder, "OWNER")) return;
+  const entry = draft.options.map(name => catalogByName.get(normalize(name))).find(candidate => candidate && normalize(candidate.name) === normalize(payload.choice));
+  if (!entry) return;
+  draft.status = "processing";
+  try {
+    await deliverOpportunity(entry, actor, {delivery: `draft-${draft.context}`});
+    draft.status = "resolved";
+    addHistory([entry.name]);
+    await saveState();
+    renderPanel();
+    game.socket.emit(SOCKET_CHANNEL, {action: "draftResolved", targetUserId: responder.id, draftId: payload.draftId, cypher: entry.name});
+    opportunityDrafts.delete(payload.draftId);
+  } catch (error) {
+    draft.status = "pending";
+    console.error(`${MODULE_ID} | Opportunity draft choice failed`, error);
+    game.socket.emit(SOCKET_CHANNEL, {action: "draftError", targetUserId: responder.id, draftId: payload.draftId});
   }
+}
+
+async function submitDraftChoice(payload) {
+  const data = {...payload, userId: game.user.id};
+  if (game.user.isGM) return resolveDraftChoice(data);
+  if (!primaryActiveGm()) return ui.notifications.warn(t("NoActiveGm"));
+  game.socket.emit(SOCKET_CHANNEL, {action: "draftChoice", ...data});
+  ui.notifications.info(t("DraftChoiceSent"));
+}
+
+async function startSceneDraft(context) {
+  const actors = scenePlayerActors();
+  if (!actors.length) return ui.notifications.warn(t("NoScenePlayers"));
+  const candidates = entriesForContext(context);
+  if (candidates.length < DRAFT_SIZE) return ui.notifications.warn(t("NotEnoughDraft", {available: candidates.length}));
+  const globallyUnique = candidates.length >= actors.length * DRAFT_SIZE;
+  const globalPool = shuffled(candidates);
+  let offset = 0;
+  const drafts = [];
+  for (const actor of actors) {
+    const options = globallyUnique ? globalPool.slice(offset, offset + DRAFT_SIZE) : shuffled(candidates).slice(0, DRAFT_SIZE);
+    offset += globallyUnique ? DRAFT_SIZE : 0;
+    if (options.length < DRAFT_SIZE) return ui.notifications.warn(t("NotEnoughDraft", {available: candidates.length}));
+    const target = activePlayerOwner(actor);
+    if (!target) continue;
+    const draftId = foundry.utils.randomID();
+    const draft = {draftId, actorId: actor.id, userId: target.id, context, options: options.map(entry => entry.name), status: "pending", createdAt: new Date().toISOString()};
+    opportunityDrafts.set(draftId, draft);
+    drafts.push({draft, target, actor, options});
+  }
+  for (const {draft, target, actor, options} of drafts) {
+    const payload = {action: "showDraft", targetUserId: target.id, draftId: draft.draftId, actorId: actor.id, context, options: options.map(draftOption)};
+    if (target.id === game.user.id) showDraftDialog(payload);
+    else game.socket.emit(SOCKET_CHANNEL, payload);
+  }
+  ui.notifications.info(t("DraftsSent", {count: drafts.length, context: contextLabel(context)}));
+}
+
+function openSceneDistributionDialog(mode) {
+  if (!planningScene()) return ui.notifications.warn(t("NoActiveScene"));
+  if (!scenePlayerActors().length) return ui.notifications.warn(t("NoScenePlayers"));
+  const selected = state.contexts[0] ?? "dramatic";
+  const content = `<form class="c2t-scene-distribution"><p>${t(mode === "draft" ? "DraftSceneHint" : "DistributeSceneHint")}</p><div class="form-group"><label>${t("SceneType")}</label><select name="context">${CONTEXTS.map(context => `<option value="${context}" ${context === selected ? "selected" : ""}>${escapeHtml(contextLabel(context))}</option>`).join("")}</select></div></form>`;
+  new Dialog({
+    title: t(mode === "draft" ? "DraftScene" : "DistributeScene"),
+    content,
+    buttons: {
+      confirm: {icon: `<i class="fa-solid ${mode === "draft" ? "fa-layer-group" : "fa-gifts"}"></i>`, label: t(mode === "draft" ? "SendChoices" : "DistributeNow"), callback: html => {
+        const context = String(html.find("[name=context]").val() ?? "dramatic");
+        return mode === "draft" ? startSceneDraft(context) : distributeSceneOpportunities(context);
+      }},
+      cancel: {label: t("Cancel")}
+    },
+    default: "confirm"
+  }, {width: 470}).render(true);
 }
 
 function isOpportunityItem(item) {
@@ -826,53 +828,11 @@ async function publishItemToChat(actor, item, {opportunity = false} = {}) {
   return ChatMessage.create({speaker: ChatMessage.getSpeaker({actor}), content});
 }
 
-function confirmXpUse(actor, item) {
-  return new Promise(resolve => {
-    let answered = false;
-    new Dialog({
-      title: t("RepeatTitle", {cypher: item.name}),
-      content: `<p>${t("RepeatConfirm", {actor: actor.name, cypher: item.name})}</p>`,
-      buttons: {
-        use: {icon: '<i class="fa-solid fa-star"></i>', label: t("SpendXp"), callback: () => { answered = true; resolve(true); }},
-        cancel: {label: t("Cancel"), callback: () => { answered = true; resolve(false); }}
-      },
-      default: "use",
-      close: () => { if (!answered) resolve(false); }
-    }, {width: 410}).render(true);
-  });
-}
-
 async function useOpportunity(actor, item) {
   if (!isOpportunityItem(item) || !(game.user.isGM || item.isOwner || actor.isOwner)) return;
-  const opportunity = foundry.utils.deepClone(item.getFlag(MODULE_ID, "opportunity") ?? {});
-  const repeated = Boolean(opportunity.usedOnce);
-  const currentXp = Math.max(0, Number(actor.system?.basic?.xp) || 0);
-  if (repeated) {
-    if (currentXp < 1) return ui.notifications.warn(t("NotEnoughXp", {actor: actor.name}));
-    if (!await confirmXpUse(actor, item)) return;
-  }
-  let xpSpent = false;
-  try {
-    if (repeated) {
-      await actor.update({"system.basic.xp": currentXp - 1});
-      xpSpent = true;
-    }
-    await publishItemToChat(actor, item, {opportunity: true});
-    opportunity.usedOnce = true;
-    opportunity.known = true;
-    opportunity.useCount = Math.max(0, Number(opportunity.useCount) || 0) + 1;
-    opportunity.lastUsedAt = new Date().toISOString();
-    await item.update({
-      [`flags.${MODULE_ID}.opportunity`]: opportunity,
-      "system.basic.cost": "1",
-      "system.basic.pool": "XP",
-      "system.settings.general.sorting": OPPORTUNITY_CATEGORY
-    });
-    ui.notifications.info(repeated ? t("XpSpent", {cypher: item.name}) : t("NowKnown", {cypher: item.name}));
-  } catch (error) {
-    if (xpSpent) await actor.update({"system.basic.xp": currentXp});
-    throw error;
-  }
+  await publishItemToChat(actor, item, {opportunity: true});
+  await actor.deleteEmbeddedDocuments("Item", [item.id]);
+  ui.notifications.info(t("UsedAndRemoved", {cypher: item.name}));
 }
 
 async function migrateDeliveredOpportunities() {
@@ -885,6 +845,38 @@ async function migrateDeliveredOpportunities() {
       const created = await actor.createEmbeddedDocuments("Item", [opportunityAbilityData(item, opportunity)]);
       if (!created.length) continue;
       await actor.deleteEmbeddedDocuments("Item", [item.id]);
+      migrated += 1;
+    }
+    const abilities = Array.from(actor.items ?? []).filter(item => isOpportunityItem(item));
+    for (const item of abilities) {
+      const opportunity = foundry.utils.deepClone(item.getFlag(MODULE_ID, "opportunity") ?? {});
+      const needsMigration = opportunity.disposable !== true
+        || opportunity.usedOnce !== undefined
+        || opportunity.known !== undefined
+        || opportunity.useCount !== undefined;
+      if (!needsMigration) continue;
+      const cleaned = {
+        narrative: String(opportunity.narrative ?? ""),
+        delivery: opportunity.delivery ?? "migrated",
+        sourceUuid: opportunity.sourceUuid ?? null,
+        acquiredAt: opportunity.acquiredAt ?? new Date().toISOString(),
+        disposable: true
+      };
+      await item.update({
+        [`flags.${MODULE_ID}.opportunity.narrative`]: cleaned.narrative,
+        [`flags.${MODULE_ID}.opportunity.delivery`]: cleaned.delivery,
+        [`flags.${MODULE_ID}.opportunity.sourceUuid`]: cleaned.sourceUuid,
+        [`flags.${MODULE_ID}.opportunity.acquiredAt`]: cleaned.acquiredAt,
+        [`flags.${MODULE_ID}.opportunity.disposable`]: true,
+        [`flags.${MODULE_ID}.opportunity.-=usedOnce`]: null,
+        [`flags.${MODULE_ID}.opportunity.-=known`]: null,
+        [`flags.${MODULE_ID}.opportunity.-=useCount`]: null,
+        [`flags.${MODULE_ID}.opportunity.-=lastUsedAt`]: null,
+        "system.description": opportunityItemDescription(itemDescription(item), cleaned),
+        "system.basic.cost": "",
+        "system.basic.pool": "",
+        "system.settings.general.sorting": OPPORTUNITY_CATEGORY
+      });
       migrated += 1;
     }
   }
@@ -917,8 +909,7 @@ function injectItemControls(app, html) {
     }
     if (!isOpportunityItem(item)) return;
     row.find(".item-roll, .c2t-native-fallback").addClass("c2t-hidden-opportunity-roll");
-    const repeated = Boolean(item.getFlag(MODULE_ID, "opportunity")?.usedOnce);
-    const use = $(`<a class="item-control c2t-opportunity-use" title="${t(repeated ? "UseForXp" : "UseFirst")}"><i class="fa-solid ${repeated ? "fa-star" : "fa-bolt"}"></i><span>${repeated ? "1 XP" : ""}</span></a>`);
+    const use = $(`<a class="item-control c2t-opportunity-use" title="${t("UseAndDiscard")}"><i class="fa-solid fa-bolt"></i></a>`);
     use.on("click", async event => {
       event.preventDefault();
       event.stopPropagation();
@@ -1042,8 +1033,11 @@ function scheduleArchiveChangeCheck(item, changes) {
 
 async function handleOpportunitySocket(payload) {
   if (payload?.action === "showOverflow") return showOverflowDialog(payload);
+  if (payload?.action === "showDraft") return showDraftDialog(payload);
+  if (payload?.action === "draftResolved" && payload.targetUserId === game.user.id) return ui.notifications.info(t("DraftChoiceResolved", {cypher: payload.cypher}));
+  if (payload?.action === "draftError" && payload.targetUserId === game.user.id) return ui.notifications.error(t("DraftChoiceError"));
   if (!game.user.isGM || primaryActiveGm()?.id !== game.user.id) return;
-  if (payload?.action === "offerDecision") return handleOfferDecision(payload);
+  if (payload?.action === "draftChoice") return resolveDraftChoice(payload);
   if (payload?.action === "overflowDecision") return resolveOverflowDecision(payload);
 }
 
@@ -1122,6 +1116,8 @@ function bindPanel(panel) {
     if (panelAction === "clear-search") { searchQuery = ""; selectedCypher = ""; renderPanel(); return; }
     if (panelAction === "draw") { drawNewHand(); return; }
     if (panelAction === "dramatic") { state.contexts = ["dramatic"]; await saveState(); drawNewHand(); return; }
+    if (panelAction === "distribute") { openSceneDistributionDialog("direct"); return; }
+    if (panelAction === "draft") { openSceneDistributionDialog("draft"); return; }
     if (panelAction === "clear-history") { state.history = []; await saveState(); drawNewHand({ rememberCurrent: false }); return; }
     if (panelAction === "refresh") { await buildSourceIndex(); renderPanel(); ui.notifications.info(t("CatalogRefreshed", { count: cypherSources.size })); return; }
     const planActionElement = event.target.closest("[data-plan-action]");
@@ -1135,7 +1131,7 @@ function bindPanel(panel) {
       const entry = catalogByName.get(normalize(item.name));
       const action = planActionElement.dataset.planAction;
       if (action === "edit" && entry) openPlanDialog(entry, item);
-      if (action === "offer" && entry) openOfferDialog(entry, {sceneId: planningScene()?.id, planId: item.id, actorId: item.actorId, narrative: item.narrative, pool: item.pool, cost: item.cost});
+      if (action === "offer" && entry) openOfferDialog(entry, {sceneId: planningScene()?.id, planId: item.id, actorId: item.actorId, narrative: item.narrative});
       if (action === "skip" || action === "restore") {
         plan[index] = {...item, status: action === "skip" ? "skipped" : "pending", updatedAt: new Date().toISOString()};
         await saveScenePlan(plan);
@@ -1201,7 +1197,7 @@ Hooks.once("ready", async () => {
     loadState();
     await buildSourceIndex();
     hand = weightedSuggestions(HAND_SIZE);
-    game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand, pendingSceneCount: pendingScenePlanCount };
+    game.cypher2Toolkit.opportunities = { open: openPanel, close: () => { panelOpen = false; renderPanel(); }, refresh: async () => { await buildSourceIndex(); renderPanel(); }, draw: drawNewHand, distribute: distributeSceneOpportunities, draft: startSceneDraft, pendingSceneCount: pendingScenePlanCount };
   }
   migrateDeliveredOpportunities().catch(error => console.error(`${MODULE_ID} | Opportunity migration failed`, error));
 });
@@ -1216,7 +1212,6 @@ Hooks.on("createItem", scheduleOverflowCheck);
 Hooks.on("updateItem", refreshForStandaloneItem);
 Hooks.on("updateItem", scheduleArchiveChangeCheck);
 Hooks.on("deleteItem", refreshForStandaloneItem);
-Hooks.on("renderChatMessage", bindOfferMessage);
 Hooks.on("renderActorSheet", injectItemControls);
 Hooks.on("updateActor", scheduleLimitChangeCheck);
 Hooks.on("updateSetting", setting => {

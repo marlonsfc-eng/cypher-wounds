@@ -431,6 +431,15 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Quando vários contextos estão ativos, cada sugestão precisa corresponder a pelo menos um deles.
 - Aumenta a tipografia dos cards, efeitos, ideias narrativas, filtros, abas e controles auxiliares.
 
+## v0.24.0
+
+- Remove custos de Pool, custos de XP, aceite/recusa e aprendizado permanente dos Opportunity Cyphers.
+- Entrega cada oportunidade diretamente como uma Ability na categoria `Combat Opportunities`, sem contar para o Cypher Limit.
+- Ao usar uma oportunidade, publica seu efeito no chat e remove automaticamente o Item da ficha.
+- Migra oportunidades já entregues para o novo formato descartável.
+- Adiciona distribuição automática por tipo de cena, com um cypher diferente para cada PC presente.
+- Adiciona o modo `Escolha 1 de 3`, que apresenta três cards adequados a cada jogador e adiciona somente a opção escolhida.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
