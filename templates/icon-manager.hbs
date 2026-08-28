@@ -1,0 +1,57 @@
+<form class="c2t-icon-manager">
+  <header class="c2t-icon-manager-intro">
+    <div>
+      <h2><i class="fas fa-icons"></i> {{localize "C2T.Icons.Title"}}</h2>
+      <p>{{localize "C2T.Icons.Intro"}}</p>
+    </div>
+    <button type="button" data-action="index-icons"><i class="fas fa-magnifying-glass"></i> {{localize "C2T.Icons.Index"}}</button>
+  </header>
+
+  <div class="c2t-icon-manager-summary">
+    <span><i class="fas fa-images"></i> {{localize "C2T.Icons.IndexedCount" count=indexed}}</span>
+    <label><input type="checkbox" name="propagate" checked> {{localize "C2T.Icons.Propagate"}}</label>
+  </div>
+
+  <nav class="c2t-icon-manager-tabs">
+    <button type="button" data-category="opportunity" class="{{#if opportunityActive}}active{{/if}}"><i class="fas fa-bolt"></i> Opportunity Cyphers <span>{{counts.opportunity}}</span></button>
+    <button type="button" data-category="manifest" class="{{#if manifestActive}}active{{/if}}"><i class="fas fa-wand-magic-sparkles"></i> Manifest Cyphers <span>{{counts.manifest}}</span></button>
+    <button type="button" data-category="artifact" class="{{#if artifactActive}}active{{/if}}"><i class="fas fa-gem"></i> Artifacts <span>{{counts.artifact}}</span></button>
+  </nav>
+
+  <div class="c2t-icon-manager-tools">
+    <label class="c2t-icon-manager-search"><i class="fas fa-magnifying-glass"></i><input type="search" data-icon-search value="{{query}}" placeholder="{{localize 'C2T.Icons.Search'}}"></label>
+    <button type="button" data-action="select-generic">{{localize "C2T.Icons.SelectGeneric"}}</button>
+    <button type="button" data-action="select-all">{{localize "C2T.Icons.SelectAll"}}</button>
+    <button type="button" data-action="select-none">{{localize "C2T.Icons.SelectNone"}}</button>
+  </div>
+
+  <div class="c2t-icon-manager-columns">
+    <span></span><span>{{localize "C2T.Icons.Current"}}</span><span>{{localize "C2T.Icons.Item"}}</span><span>{{localize "C2T.Icons.Suggested"}}</span><span>{{localize "C2T.Icons.Path"}}</span>
+  </div>
+
+  <section class="c2t-icon-manager-list">
+    {{#if loading}}
+      <div class="c2t-icon-manager-empty"><i class="fas fa-spinner fa-spin"></i> {{localize "C2T.Icons.Loading"}}</div>
+    {{else}}
+      {{#each rows}}
+        <article class="c2t-icon-manager-row {{#if generic}}generic{{/if}}" data-icon-row data-key="{{key}}">
+          <input type="checkbox" name="selected" {{#if selected}}checked{{/if}} title="{{localize 'C2T.Icons.Include'}}">
+          <img data-current-preview src="{{#if img}}{{img}}{{else}}icons/svg/item-bag.svg{{/if}}" alt="" title="{{img}}">
+          <div class="c2t-icon-manager-name"><strong>{{name}}</strong><small>{{sources}}{{#if count}} · {{count}} {{localize "C2T.Icons.Copies"}}{{/if}}</small></div>
+          <img data-suggested-preview src="{{displayImg}}" alt="" title="{{suggested}}">
+          <div class="c2t-icon-manager-path">
+            <input id="c2t-icon-{{@index}}" name="c2t-icon-{{@index}}" type="text" data-icon-path data-key="{{key}}" value="{{suggested}}" placeholder="icons/…">
+            <button type="button" data-action="browse" data-key="{{key}}" data-type="image" data-target="c2t-icon-{{@index}}" data-current="{{suggested}}" title="{{localize 'C2T.Icons.Browse'}}"><i class="fas fa-folder-open"></i></button>
+          </div>
+        </article>
+      {{else}}
+        <div class="c2t-icon-manager-empty"><i class="fas fa-box-open"></i> {{localize "C2T.Icons.NoItems"}}</div>
+      {{/each}}
+    {{/if}}
+  </section>
+
+  <footer class="c2t-icon-manager-footer">
+    <p><i class="fas fa-shield-halved"></i> {{localize "C2T.Icons.SafeHint"}}</p>
+    <button type="button" data-action="apply"><i class="fas fa-check"></i> {{localize "C2T.Icons.Apply"}}</button>
+  </footer>
+</form>

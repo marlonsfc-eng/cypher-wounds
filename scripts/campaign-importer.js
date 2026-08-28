@@ -1,3 +1,4 @@
+import {mappedIcon} from "./icon-manager.js";
 const MODULE_ID = "cypher-2-toolkit";
 const MODULE_PATH = `modules/${MODULE_ID}`;
 const FLAG_SCOPE = MODULE_ID;
@@ -161,14 +162,19 @@ function itemData(entry, folder, campaign, assets) {
     const supplied = clone(entry.document || entry.data);
     supplied.name = supplied.name || entry.name;
     supplied.type = supplied.type || entry.type || "equipment";
+    const suppliedOpportunity = Boolean(entry.randomCypher ?? foundry.utils.getProperty(supplied, `flags.${MODULE_ID}.randomCypher`));
+    if (supplied.type === "artifact") supplied.img = mappedIcon("artifact", supplied.name, supplied.img);
+    if (supplied.type === "cypher") supplied.img = mappedIcon(suppliedOpportunity ? "opportunity" : "manifest", supplied.name, supplied.img);
     supplied.folder = folder.id;
     supplied.flags = foundry.utils.mergeObject(supplied.flags || {}, managedFlags(campaign, entry.id, {sourcePage: entry.page ?? null}), {inplace: false});
     return supplied;
   }
   const type = entry.type || "equipment";
+  const fallbackImg = assets.get(entry.img) || entry.img || (type === "artifact" ? "icons/svg/sword.svg" : type === "cypher" ? "icons/svg/lightning.svg" : "icons/svg/item-bag.svg");
+  const iconCategory = type === "artifact" ? "artifact" : type === "cypher" ? (entry.randomCypher ? "opportunity" : "manifest") : null;
   const base = {
     name: entry.name, type,
-    img: assets.get(entry.img) || entry.img || (type === "artifact" ? "icons/svg/sword.svg" : type === "cypher" ? "icons/svg/lightning.svg" : "icons/svg/item-bag.svg"),
+    img: iconCategory ? mappedIcon(iconCategory, entry.name, fallbackImg) : fallbackImg,
     folder: folder.id, flags: managedFlags(campaign, entry.id, {sourcePage: entry.page ?? null})
   };
   const description = resolveAssets(entry.description || "", assets);

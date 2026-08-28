@@ -1,3 +1,4 @@
+import {mappedIcon} from "./icon-manager.js";
 const C2T_ID = "cypher-2-toolkit";
 
 function c2tLocalize(key) { return game.i18n.localize(key); }
@@ -129,7 +130,7 @@ function itemData(entry, category="abilities", context=null) {
   };
   const system = foundry.utils.mergeObject(systemDefaults, cleanObject(base.system), {inplace:false, overwrite:true});
 
-  return foundry.utils.mergeObject({
+  const data = foundry.utils.mergeObject({
     name: String(entry.name ?? "Unnamed Entry"), type: String(base.type ?? entry.type ?? (isCypher ? "cypher" : category === "skills" ? "skill" : "ability")),
     img: String(base.img ?? entry.img ?? "icons/svg/book.svg"), system,
     flags: { [C2T_ID]: {
@@ -142,6 +143,8 @@ function itemData(entry, category="abilities", context=null) {
       playerIntrusion: Boolean(entry.playerIntrusion ?? false)
     }}
   }, base, {inplace:false, overwrite:true});
+  if (isCypher) data.img = mappedIcon(entry.randomCypher ? "opportunity" : "manifest", data.name, data.img);
+  return data;
 }
 
 async function ensureWorldPack({name,label,type}) {

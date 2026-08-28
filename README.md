@@ -440,6 +440,15 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Adiciona distribuição automática por tipo de cena, com um cypher diferente para cada PC presente.
 - Adiciona o modo `Escolha 1 de 3`, que apresenta três cards adequados a cada jogador e adiciona somente a opção escolhida.
 
+## v0.25.0
+
+- Adiciona um Gerenciador de Ícones nas configurações do módulo, exclusivo do Mestre.
+- Organiza Opportunity Cyphers, Manifest Cyphers e Artifacts em abas separadas e inclui busca por nome.
+- Localiza os ícones nativos já incluídos no Foundry e gera sugestões com base no nome e na categoria de cada Item.
+- Permite trocar qualquer sugestão pelo seletor de arquivos do Foundry e aplicar as escolhas em lote.
+- Preserva imagens personalizadas por padrão e pode atualizar também as cópias dos Items que já estão nas fichas.
+- Guarda as associações escolhidas para que futuras importações reutilizem automaticamente os mesmos ícones.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.
