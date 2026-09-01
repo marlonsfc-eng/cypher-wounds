@@ -1927,6 +1927,44 @@
   gap: 5px;
 }
 
+.c2t-icon-manager-filters {
+  display: flex;
+  gap: 10px;
+}
+
+.c2t-icon-manager-filters fieldset {
+  display: flex;
+  flex: 1 1 0;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  padding: 5px 8px 8px;
+  border: 1px solid rgba(0, 0, 0, .2);
+  border-radius: 5px;
+}
+
+.c2t-icon-manager-filters fieldset.disabled {
+  opacity: .5;
+}
+
+.c2t-icon-manager-filters legend {
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.c2t-icon-manager-filters button {
+  min-height: 28px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.c2t-icon-manager-filters button.active {
+  color: #fff2d4;
+  border-color: #a9682b;
+  background: #75441f;
+}
+
 .c2t-icon-manager-tabs {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

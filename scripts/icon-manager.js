@@ -1,10 +1,14 @@
 const MODULE_ID = "cypher-2-toolkit";
 const MAPPING_SETTING = "iconMappings";
 const ICON_EXTENSIONS = [".webp", ".png", ".jpg", ".jpeg", ".svg"];
-const ICON_ROOTS = [
+const FOUNDRY_ICON_ROOTS = [
   "icons/skills", "icons/magic", "icons/equipment", "icons/weapons",
   "icons/commodities", "icons/consumables", "icons/tools", "icons/sundries"
 ];
+const GAME_ICONS_ROOTS = {
+  black: "modules/game-icons-net/blackbackgrounds",
+  white: "modules/game-icons-net/whitebackgrounds"
+};
 const GENERIC_ICONS = new Set([
   "", "icons/svg/book.svg", "icons/svg/item-bag.svg", "icons/svg/lightning.svg",
   "icons/svg/sword.svg", "icons/svg/mystery-man.svg", "icons/svg/hazard.svg",
@@ -78,7 +82,10 @@ function filePickerClass() {
 }
 
 function pathTokens(path) {
-  return tokens(String(path).replace(/^icons\//, "").replace(/\.[^.]+$/, ""));
+  return tokens(String(path)
+    .replace(/^icons\//, "")
+    .replace(/^modules\/game-icons-net\/(?:black|white)backgrounds\//, "")
+    .replace(/\.[^.]+$/, ""));
 }
 
 function expandedTokens(name) {
@@ -102,24 +109,35 @@ function iconScore(name, category, path) {
   return score;
 }
 
-async function browseIconTree(onProgress = null) {
+async function browseIconTree({source = "all", variant = "black"} = {}, onProgress = null) {
   const Picker = filePickerClass();
   if (!Picker?.browse) throw new Error(t("FilePickerUnavailable"));
-  const queue = [...ICON_ROOTS];
+  const roots = [];
+  if (source === "all" || source === "foundry") {
+    roots.push(...FOUNDRY_ICON_ROOTS.map(path => ({path, prefix: "icons/", label: "Foundry"})));
+  }
+  if (source === "all" || source === "game-icons") {
+    const variants = variant === "both" ? ["black", "white"] : [variant];
+    roots.push(...variants.map(name => ({path: GAME_ICONS_ROOTS[name], prefix: `${GAME_ICONS_ROOTS[name]}/`, label: "game-icons-net"})));
+  }
+  const queue = [...roots];
   const visited = new Set();
   const files = new Set();
-  while (queue.length && visited.size < 900 && files.size < 9000) {
-    const target = queue.shift();
+  while (queue.length && visited.size < 3000 && files.size < 30000) {
+    const {path: target, prefix, label} = queue.shift();
     if (!target || visited.has(target)) continue;
     visited.add(target);
     let result;
     try { result = await Picker.browse("public", target, {extensions: ICON_EXTENSIONS}); }
     catch (error) {
-      console.warn(`${MODULE_ID} | Could not browse core icon folder ${target}`, error);
+      console.warn(`${MODULE_ID} | Could not browse ${label} icon folder ${target}`, error);
       continue;
     }
     for (const file of result?.files ?? []) files.add(String(file));
-    for (const directory of result?.dirs ?? []) if (String(directory).startsWith("icons/")) queue.push(String(directory));
+    for (const directory of result?.dirs ?? []) {
+      const path = String(directory);
+      if (path.startsWith(prefix)) queue.push({path, prefix, label});
+    }
     if (onProgress && visited.size % 20 === 0) onProgress(visited.size, files.size);
   }
   return [...files];
@@ -206,6 +224,8 @@ export class CypherIconManager extends FormApplication {
     this.suggestions = new Map();
     this.category = "opportunity";
     this.query = "";
+    this.iconSource = "all";
+    this.gameIconsVariant = "black";
     this.loading = false;
   }
 
@@ -235,7 +255,11 @@ export class CypherIconManager extends FormApplication {
     return {
       isGM: game.user.isGM, loading: this.loading, rows: visible, indexed: this.iconIndex.length,
       query: this.query, counts, opportunityActive: this.category === "opportunity",
-      manifestActive: this.category === "manifest", artifactActive: this.category === "artifact"
+      manifestActive: this.category === "manifest", artifactActive: this.category === "artifact",
+      allSourcesActive: this.iconSource === "all", foundrySourceActive: this.iconSource === "foundry",
+      gameIconsSourceActive: this.iconSource === "game-icons", blackVariantActive: this.gameIconsVariant === "black",
+      whiteVariantActive: this.gameIconsVariant === "white", bothVariantsActive: this.gameIconsVariant === "both",
+      gameIconsEnabled: this.iconSource !== "foundry"
     };
   }
 
@@ -259,6 +283,18 @@ export class CypherIconManager extends FormApplication {
   activateListeners(html) {
     super.activateListeners(html);
     html.find("[data-category]").on("click", event => { this.category = event.currentTarget.dataset.category; this.render(false); });
+    html.find("[data-icon-source]").on("click", event => {
+      this.iconSource = event.currentTarget.dataset.iconSource;
+      this.iconIndex = [];
+      this.buildSuggestions();
+      this.render(false);
+    });
+    html.find("[data-game-icons-variant]").on("click", event => {
+      this.gameIconsVariant = event.currentTarget.dataset.gameIconsVariant;
+      this.iconIndex = [];
+      this.buildSuggestions();
+      this.render(false);
+    });
     html.find("[data-icon-search]").on("input", event => {
       this.query = event.currentTarget.value;
       const query = normalize(this.query);
@@ -270,7 +306,10 @@ export class CypherIconManager extends FormApplication {
       button.disabled = true;
       button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t("Indexing")}`;
       try {
-        this.iconIndex = await browseIconTree((_folders, files) => { button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t("IndexedProgress", {count: files})}`; });
+        this.iconIndex = await browseIconTree(
+          {source: this.iconSource, variant: this.gameIconsVariant},
+          (_folders, files) => { button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${t("IndexedProgress", {count: files})}`; }
+        );
         this.buildSuggestions();
         ui.notifications.info(t("Indexed", {count: this.iconIndex.length}));
         this.render(false);

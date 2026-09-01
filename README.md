@@ -454,6 +454,12 @@ Abra **Configurações do jogo → Configurar definições → Cypher 2 Toolkit 
 - Corrige a aplicação de ícones em Items armazenados nos compêndios do mundo no Foundry 13.
 - Reconhece corretamente tanto UUIDs compactos quanto UUIDs que incluem o tipo `Item` antes do identificador do documento.
 
+## v0.25.2
+
+- Inclui os ícones `blackbackgrounds` e `whitebackgrounds` do módulo Game-icons.net no indexador existente.
+- Adiciona filtros de origem e variante, priorizando `blackbackgrounds` por padrão.
+- Mantém a busca dos ícones nativos do Foundry e usa todas as fontes habilitadas nas sugestões automáticas.
+
 
 ## v0.9.1
 - Aumenta fontes, espaçamento e tamanho-padrão do painel para melhorar a leitura.

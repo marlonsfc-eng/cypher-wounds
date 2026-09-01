@@ -12,6 +12,21 @@
     <label><input type="checkbox" name="propagate" checked> {{localize "C2T.Icons.Propagate"}}</label>
   </div>
 
+  <div class="c2t-icon-manager-filters">
+    <fieldset>
+      <legend>{{localize "C2T.Icons.Source"}}</legend>
+      <button type="button" data-icon-source="all" class="{{#if allSourcesActive}}active{{/if}}">{{localize "C2T.Icons.SourceAll"}}</button>
+      <button type="button" data-icon-source="foundry" class="{{#if foundrySourceActive}}active{{/if}}">Foundry</button>
+      <button type="button" data-icon-source="game-icons" class="{{#if gameIconsSourceActive}}active{{/if}}">Game-icons.net</button>
+    </fieldset>
+    <fieldset class="{{#unless gameIconsEnabled}}disabled{{/unless}}" {{#unless gameIconsEnabled}}disabled{{/unless}}>
+      <legend>{{localize "C2T.Icons.Variant"}}</legend>
+      <button type="button" data-game-icons-variant="black" class="{{#if blackVariantActive}}active{{/if}}">{{localize "C2T.Icons.Black"}}</button>
+      <button type="button" data-game-icons-variant="white" class="{{#if whiteVariantActive}}active{{/if}}">{{localize "C2T.Icons.White"}}</button>
+      <button type="button" data-game-icons-variant="both" class="{{#if bothVariantsActive}}active{{/if}}">{{localize "C2T.Icons.Both"}}</button>
+    </fieldset>
+  </div>
+
   <nav class="c2t-icon-manager-tabs">
     <button type="button" data-category="opportunity" class="{{#if opportunityActive}}active{{/if}}"><i class="fas fa-bolt"></i> Opportunity Cyphers <span>{{counts.opportunity}}</span></button>
     <button type="button" data-category="manifest" class="{{#if manifestActive}}active{{/if}}"><i class="fas fa-wand-magic-sparkles"></i> Manifest Cyphers <span>{{counts.manifest}}</span></button>
